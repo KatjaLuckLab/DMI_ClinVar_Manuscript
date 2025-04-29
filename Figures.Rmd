@@ -46,7 +46,7 @@ amino_acid_map <- c(
   Met = "M", Phe = "F", Pro = "P",  Ser = "S", 
   Thr = "T", Trp = "W", Tyr = "Y", Val = "V"
   )
-
+ 
 elm_categories <- c("Cleavage", "Degrons","Subst. recog.", "Scaffolding", "PTM sites", "Localization")
 strc_categories <- c("D. interface", "D. buried","D. surface", "M. interface", "M. not int.")
 ```
@@ -566,7 +566,7 @@ BRET_mutants_update$AlphaMissense <- ordered(BRET_mutants_update$AlphaMissense, 
 BRET_mutants_update_motif <-  BRET_mutants_update %>% filter(mutation_location!="domain") %>%
   mutate(mutation_location=case_when(mutation_location=="core motif" ~ "Core", mutation_location=="outside motif" ~ "Flank"))
 
-BRET_mutants_update %>% filter(mCit_symbol=="CALM1")
+BRET_mutants_update %>% filter(mCit_symbol=="RXRB")
 ```
 
 
@@ -977,27 +977,6 @@ dev.off()
 # p1
 # dev.off()
 
-
-p2 <- ggplot(ClinVar_mut_dis, aes(x=pathogenicity, y=avg_IUPred, color=as.factor(pathogenicity))) + 
-  geom_quasirandom(size=0.5, alpha=0.4) + geom_boxplot(color="black", width=0.25, outlier.alpha = 0.2, alpha=0.5) +
-  ggtitle("ClinVar variant IUPred") + xlab("Clinical relevance") + ylab("Residue IUPred") + 
-  theme_classic()  +  scale_color_manual(values=colors_Var) +
-  theme(text = element_text(size = 20), legend.position = "none", legend.title = element_text(size=8), 
-        legend.text = element_text(size=8), legend.key.size = unit(0.3, 'cm'), axis.text.x = element_text(angle = 30, vjust = 1, hjust=1),
-        axis.line = element_line(size = 1) , axis.ticks = element_line(linewidth = 1)) 
-
-p2 
-
-#SAVE PNG
-# png("Figures/Figure1_graphics/ClinVar_IUPred.png", units="cm", width=10, height=10, res=800)
-# p2
-# dev.off()
-# #SAVE PDF
-# pdf("Figures/Figure1_graphics/ClinVar_IUPred.pdf", width=4, height=4)
-# p2
-# dev.off()
-
-#rm (p1,p2)
 ```
 
 ```{r Figure1_Graphic_C}
@@ -1024,15 +1003,14 @@ p1 <- ggplot(RRS_ROC, aes(x=mean_fpr, y=mean_tpr, fill=RRS)) +  geom_line(color=
   #annotate(geom="text", label="mean AUC = 0.93", x=0.7, y=0.1, size=3, color="red")+
   ggtitle("RRS ROC") + xlab("1 - Specificity") + ylab("Sensitivity") + 
   theme_classic() + 
-  theme(text = element_text(size = 30), axis.text = element_text(color = "black"), legend.position = "none",
-        axis.line = element_line(size = 1), axis.ticks = element_line(linewidth = 1)) + 
+  theme(text = element_text(size = 25), axis.text = element_text(color = "black"), legend.position = "none") + 
   scale_x_continuous(breaks=c(0,0.5,1)) + scale_y_continuous(breaks=c(0,0.5,1)) 
 
 p1
 p1 + geom_point() + geom_text(aes(label = mean_tpr), vjust = -1, hjust = -0.2, size = 3) 
 
 #SAVE TIFF
-tiff("Figures/Figure1_graphics/DMI_predictor_ROC.tiff", units="cm", width=6, height=6, res=800)
+tiff("Figures/Figure1_graphics/DMI_predictor_ROC.tiff", units="cm", width=8, height=8, res=800)
 p1
 dev.off()
 #SAVE PDF
@@ -1045,15 +1023,14 @@ p2 <- ggplot(RRS_PRC, aes(x=mean_recall, y=mean_precision, fill=RRS)) +  geom_li
   #annotate(geom="text", label="mean AP = 0.93", x=0.3, y=0.5, size=3, color="red")+
   ggtitle("RRS PRC") + xlab("Recall") + ylab("Precision") + 
   theme_classic() + 
-  theme(text = element_text(size = 30), axis.text = element_text(color = "black"),legend.position = "none",
-        axis.line = element_line(size = 1), axis.ticks = element_line(linewidth = 1)) + 
+  theme(text = element_text(size = 25), axis.text = element_text(color = "black"),legend.position = "none") + 
   scale_x_continuous(breaks=c(0,0.5,1)) 
 
 p2
 p2 + geom_point() + geom_text(aes(label = mean_precision), vjust = -1, hjust = -0.2, size = 3) 
 
 #SAVE TIFF
-tiff("Figures/Figure1_graphics/DMI_predictor_PRC.tiff", units="cm", width=6, height=6, res=800)
+tiff("Figures/Figure1_graphics/DMI_predictor_PRC.tiff", units="cm", width=8, height=8, res=800)
 p2
 dev.off()
 #SAVE PDF
@@ -1113,7 +1090,8 @@ dev.off()
 ```
 
 
-```{r Figure1_Supp_Graphic_ChiSq1}
+
+```{r Figure1_Supp_Graphic_ChiSq_pLDDT}
 ### Correlations plots - pLDDT classification
 
 Pathogenicity_pLDDT_chisq$residuals
@@ -1145,7 +1123,32 @@ corrplot(Pathogenicity_pLDDT_PU_chisq$residuals, method = 'color', is.corr = FAL
 dev.off()
 ```
 
-```{r Figure1_Supp_Graphic_ChiSq2}
+```{r Figure1_Supp_Graphic_IUPred}
+
+p1 <- ggplot(ClinVar_mut_dis, aes(x=avg_IUPred, y=pathogenicity, color=as.factor(pathogenicity))) + 
+  geom_quasirandom(size=0.5, alpha=0.4) + geom_boxplot(color="black", width=0.25, outlier.alpha = 0.2, alpha=0.5) +
+  geom_vline(xintercept = 0.4 , size=0.5, color="red") + 
+  ggtitle("ClinVar variant IUPred") + ylab("Clinical relevance") + xlab("Residue IUPred") + 
+  theme_classic()  +  scale_color_manual(values=colors_Var) +
+  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), legend.position = "none", 
+        axis.ticks = element_line(linewidth = 1)) + scale_y_discrete(limits=rev) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) 
+
+p1 
+
+#SAVE PNG
+png("Figures/SuppFig_ClinVar_graphics/ClinVar_IUPred.png", units="cm", width=11, height=8, res=800)
+p1
+dev.off()
+# #SAVE PDF
+# pdf("Figures/Figure1_graphics/ClinVar_IUPred.pdf", width=4, height=4)
+# p1
+# dev.off()
+
+#rm (p1,p2)
+```
+
+```{r Figure1_Supp_Graphic_ChiSq_IUPred}
 ### Correlations plots - IUPred classification
 
 Pathogenicity_IUPred_chisq$residuals
@@ -1178,16 +1181,18 @@ dev.off()
 
 ```{r Figure1_Supp_Graphic_AM}
 ## Needs to be updated to include all ClinVar and not only the DMI proteins mutations
-p1 <- ggplot(ClinVar_mut_dis %>% filter(!is.na(AM_pathogenicity)), aes(x=AM_pathogenicity, y=avg_pLDDT, color=as.factor(AM_pathogenicity))) + 
+p1 <- ggplot(ClinVar_mut_dis %>% filter(!is.na(AM_pathogenicity)), aes(y=AM_pathogenicity, x=avg_pLDDT, color=as.factor(AM_pathogenicity))) + 
   geom_quasirandom(size=0.5, alpha=0.4) + geom_boxplot(color="black", width=0.25, outlier.alpha = 0.2, alpha=0.5) +
-  ggtitle("AM ClinVar variants pLDDT") + xlab("AM pathogenicity") + ylab("Residue pLDDT") + 
+  geom_vline(xintercept = 70 , size=0.5, color="red") + 
+  ggtitle("AM ClinVar variants pLDDT") + ylab("AM pathogenicity") + xlab("Residue pLDDT") + 
   theme_classic()  +  scale_color_manual(values=colors_Var) +
-  theme(text = element_text(size = 15), axis.text = element_text(color = "black"), legend.position = "none", 
-        legend.title = element_text(size=8), legend.text = element_text(size=8), legend.key.size = unit(0.3, 'cm'), 
-        axis.text.x = element_text(angle = 30, vjust = 1, hjust=1), axis.line = element_line(size = 1) , 
-        axis.ticks = element_line(linewidth = 1)) 
+  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), legend.position = "none", 
+        axis.ticks = element_line(linewidth = 1)) + scale_y_discrete(limits=rev) 
 p1
-
+#SAVE PNG
+png("Figures/SuppFig_ClinVar_graphics/AM_pLDDT.png", units="cm", width=11, height=8, res=800)
+p1
+dev.off()
 # #SAVE TIFF
 # tiff("Figures/Figure1_graphics/Other/Supp_AM_pLDDT.tiff", units="cm", width=10, height=10, res=800)
 # p1
@@ -1198,16 +1203,19 @@ p1
 # dev.off()
 
 
-p2 <- ggplot(ClinVar_mut_dis%>% filter(!is.na(AM_pathogenicity)), aes(x=AM_pathogenicity, y=avg_IUPred, color=as.factor(AM_pathogenicity))) + 
+p2 <- ggplot(ClinVar_mut_dis%>% filter(!is.na(AM_pathogenicity)), aes(y=AM_pathogenicity, x=avg_IUPred, color=as.factor(AM_pathogenicity))) + 
   geom_quasirandom(size=0.5, alpha=0.4) + geom_boxplot(color="black", width=0.25, outlier.alpha = 0.2, alpha=0.5) +
-  ggtitle("AM ClinVar variant pLDDT") + xlab("AM pathogenicity") + ylab("Residue IUPred") + 
+  geom_vline(xintercept = 0.4 , size=0.5, color="red") + 
+  ggtitle("AM ClinVar variant pLDDT") + ylab("AM pathogenicity") + xlab("Residue IUPred") + 
   theme_classic()  +  scale_color_manual(values=colors_Var) +
-  theme(text = element_text(size = 15), legend.position = "none", axis.text = element_text(color = "black"), 
-        legend.title = element_text(size=8), 
-        legend.text = element_text(size=8), legend.key.size = unit(0.3, 'cm'), axis.text.x = element_text(angle = 30, vjust = 1, hjust=1),
-        axis.line = element_line(size = 1) , axis.ticks = element_line(linewidth = 1)) 
+  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), legend.position = "none", 
+        axis.ticks = element_line(linewidth = 1)) + scale_y_discrete(limits=rev) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3))
 p2
-# 
+#SAVE PNG
+png("Figures/SuppFig_ClinVar_graphics/AM_IUPred.png", units="cm", width=11, height=8, res=800)
+p2
+dev.off()
 # #SAVE TIFF
 # tiff("Figures/Figure1_graphics/Other/Supp_AM_IUPred.tiff", units="cm", width=10, height=10, res=800)
 # p2
@@ -1271,16 +1279,17 @@ dev.off()
 ```{r Figure1_Supp_DMI_Graphic_C_DMIscores_ELM}
 p1 <- ggplot(HuRI_DMIs, aes(x=DMIMatchScore, y = ELM_type, color = ELM_type)) + geom_quasirandom(size=0.1, alpha=0.5) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
   geom_boxplot(color="black", width=0.15, lwd=0.4, alpha=0.75, outlier.size = 1, outlier.alpha = 0.5) + 
-  geom_vline(xintercept = 0.7, color="black") +
+  geom_vline(xintercept = 0.7, color="red") +
   ylab("ELM category") + xlab("DMI score") + 
   scale_color_manual(values=colors_ELMtypes) +
   theme_classic() + theme(text = element_text(size = 18), legend.position="none", 
                           axis.text = element_text(color = "black"),axis.ticks = element_line(linewidth = 1))+ 
-  scale_y_discrete(limits=rev, labels = rev(elm_categories)) 
+  scale_y_discrete(limits=rev, labels = rev(elm_categories)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) 
 p1
 
 #SAVE png
-png("Figures/SuppFig_DMI_HuRI_graphics/HuRI_DMI_Scores.png", units="cm", width=12, height=8, res=800)
+png("Figures/SuppFig_DMI_HuRI_graphics/HuRI_DMI_Scores.png", units="cm", width=11, height=8, res=800)
 p1
 dev.off()
 # SAVE PDF
@@ -1322,15 +1331,17 @@ p2 <- ggplot(HuRI_DMI_classes, aes(y=ELM_type , fill=interaction(HighScored, ELM
   geom_bar(position="fill", width = 0.6, color="black", size=0.4) +
   ylab("ELM category") + xlab("ELM class fraction") + 
   theme_minimal() + scale_fill_manual(values=colors_ELMtypes_ln) + labs(fill = "High Scored\nDMI classes") +
-  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(linewidth = 1.5, size = 0.5), legend.position="none")+ 
-  scale_y_discrete(limits=rev, labels = rev(elm_categories)) 
+  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), axis.ticks = element_line(size = 0.5), axis.ticks.y = element_line(size = 0),
+        legend.position="none")+ 
+  scale_y_discrete(limits=rev, labels = rev(elm_categories)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) 
 p2
 p2 + geom_text(aes(label = ..count..), stat = "count", vjust = -0.1,hjust= 1, position = position_fill(0.25), size = 3) +
   geom_text(stat='prop', vjust=-0.1, hjust= -0.1, position = position_fill(0.25), size=3) 
 
 # SAVE TIFF
-tiff("Figures/SuppFig_DMI_HuRI_graphics/HuRI_DMI_highScore_Classes_fraction.tiff", units="cm", width=12, height=8, res=800)
+tiff("Figures/SuppFig_DMI_HuRI_graphics/HuRI_DMI_highScore_Classes_fraction.tiff", units="cm", width=11, height=8, res=800)
 p2
 dev.off()
 
@@ -1527,23 +1538,21 @@ dev.off()
 ```
 
 ```{r Figure2_Graphic_B}
-plots_title <- "DMI - Region variants"
-plots_xlab <- "Protein region"
-plots_ylab <- "Variant fraction"
 
 p1 <- ggplot(HURI_ClinVar_mutation, aes(x=fragment_type , fill=pathogenicity)) + 
   geom_bar(position="fill", width = 0.6, color="black", size=0.4) +
-  ggtitle(plots_title) +  xlab(plots_xlab) + ylab(plots_ylab) + 
+  ggtitle("DMI - Region variants") +  xlab("Protein region") + ylab("Variant fraction") + 
   theme_minimal() + scale_fill_manual(values=colors_Var) + labs(fill = "Pathogenicity") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), axis.text = element_text(color = "black"),
-        panel.grid.minor = element_blank(), axis.ticks.y = element_line(size = 1), axis.title.x=element_blank())
+  theme(text = element_text(size = 20), panel.grid.major = element_blank(), legend.position = "null", 
+        axis.text = element_text(color = "black"),panel.grid.minor = element_blank(), 
+        axis.ticks.y = element_line(linewidth = 0.5), axis.title.x=element_blank())+
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
 p1
 
 # SAVE TIFF
-tiff("Figures/Figure2_graphics/HuRI_human_ClinVar_mutations_fragment.tiff", units="cm", width=12, height=8, res=800)
+tiff("Figures/Figure2_graphics/HuRI_human_ClinVar_mutations_fragment.tiff", units="cm", width=9, height=8, res=800)
 p1
 dev.off()
-
 # SAVE PDF
 pdf("Figures/Figure2_graphics/HuRI_human_ClinVar_mutations_fragment.pdf", width=6, height=4)
 p1
@@ -1576,14 +1585,15 @@ p1 <- ggplot(HURI_ClinVar_mut_motif, aes(y=ELM_type , fill=pathogenicity)) +
   theme_minimal() + scale_fill_manual(values=colors_Var) + labs(fill = "Clinical relevance") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(),  axis.text = element_text(color = "black"), 
         legend.position = "none", panel.grid.minor = element_blank(),  axis.ticks = element_line(size = 0.5))+ 
-  scale_y_discrete(limits=rev, labels = rev(elm_categories)) 
+  scale_y_discrete(limits=rev, labels = rev(elm_categories)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) 
 
 p1
 p1 +geom_text(aes(label = ..count..), stat = "count", vjust = -0.1,hjust= 1, position = position_fill(0.25), size = 3) +
   geom_text(stat='prop', vjust=-0.1, hjust= -0.1, position = position_fill(0.25), size=3) 
 
 # SAVE TIFF
-tiff("Figures/Figure2_graphics/HuRI_human_ClinVar_mutations_ELM.tiff", units="cm", width=12, height=8, res=800)
+tiff("Figures/Figure2_graphics/HuRI_human_ClinVar_mutations_ELM.tiff", units="cm", width=11, height=8, res=800)
 p1
 dev.off()
 
@@ -2483,19 +2493,23 @@ for(i in 1:nrow(BRET_mutant_pairs)){
 
 
 ```{r Figure4_Graph_E}
-p1 <- ggplot(BRET_mutants_update_motif, aes(x=mutation_location, fill=as.factor(exp_conclusion))) + 
+BRET_mutants_update_motif$exp_conclusion <- ordered(BRET_mutants_update_motif$exp_conclusion, levels = c("not_disrupting","disrupting"))
+
+p1 <- ggplot(BRET_mutants_update_motif, aes(y=mutation_location, fill=as.factor(exp_conclusion))) + 
   geom_bar(position="fill", width = 0.6, color="black", size=0.4) +
-  xlab("Motif region") + ylab("Fraction DMIs perturbed") + 
-  theme_minimal() + scale_fill_manual(values=c("darkgrey","#006AB4")) + labs(fill = "Interaction") +
-  theme(text = element_text(size = 20), axis.title.x=element_blank() , panel.grid.minor = element_blank(), legend.position="none",
-        axis.ticks.y = element_line(size = 0.5), panel.grid.major = element_blank(), axis.text = element_text(color = "black"))  
+  ylab("Motif region") + xlab("Fraction DMIs perturbed") + 
+  theme_minimal() + scale_fill_manual(values=c("#CADCE8","#00548C")) + labs(fill = "Interaction") +
+  theme(text = element_text(size = 20), axis.title.y=element_blank() , panel.grid.minor = element_blank(), 
+        legend.position="none", axis.ticks.x = element_line(size = 0.5), panel.grid.major = element_blank(), 
+        axis.text = element_text(color = "black"))  +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) 
 
 p1 +geom_text(aes(label = ..count..), stat = "count", vjust = -0.1,hjust= 1, position = position_fill(0.25), size = 3) +
   geom_text(stat='prop', vjust=-0.1, hjust= -0.1, position = position_fill(0.25), size=3) 
 
 
 # SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_results_2.tiff", units="cm", width=8, height=8, res=800)
+tiff("Figures/Figure4_graphics/BRET_mutants_results_2.tiff", units="cm", width=7, height=8, res=800)
 p1
 dev.off()
 
@@ -2503,7 +2517,7 @@ dev.off()
 p1 <- ggplot(BRET_mutants_update_motif %>% select(aa_change, mutation_location, exp_conclusion) %>% unique(), aes(x=mutation_location, fill=as.factor(exp_conclusion))) + 
   geom_bar(position="fill", width = 0.6, color="black", size=0.4) +
   xlab("Motif region") + ylab("Fraction DMIs perturbed") + 
-  theme_minimal() + scale_fill_manual(values=c("darkgrey","#006AB4")) + labs(fill = "Interaction") +
+  theme_minimal() + scale_fill_manual(values=c("#CADCE8","#00548C")) + labs(fill = "Interaction") +
   theme(text = element_text(size = 20), axis.title.x=element_blank() , panel.grid.minor = element_blank(), legend.position="none",
         axis.ticks.y = element_line(size = 0.5), panel.grid.major = element_blank(), axis.text = element_text(color = "black"))  
 
@@ -2511,12 +2525,13 @@ p1 +geom_text(aes(label = ..count..), stat = "count", vjust = -0.1,hjust= 1, pos
   geom_text(stat='prop', vjust=-0.1, hjust= -0.1, position = position_fill(0.25), size=3) 
 
 
+BRET_mutants_update_motif$exp_conclusion <- ordered(BRET_mutants_update_motif$exp_conclusion, levels = c("disrupting","not_disrupting"))
 
 
 p1 <- ggplot(BRET_mutants_update_motif, aes(x=interaction(mutation_location,exp_conclusion), y=tstat_bret50)) + 
-  geom_quasirandom(size=2, alpha=1, aes(color=mutation_location)) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
-  geom_boxplot(color="black", alpha=0.1, width=0.5, lwd=0.4, outlier.size = 1, outlier.alpha = 1) + 
-  scale_color_manual(values=c("forestgreen","limegreen")) +
+  geom_quasirandom(size=2, alpha=1, aes(color=exp_conclusion)) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
+  geom_boxplot(color="black", alpha=0.1, width=0.5, lwd=0.4, outlier.size = 0.5, outlier.alpha = 1) + 
+  scale_color_manual(values=c("#00548C","#56B4E9")) +
   ggtitle("BRET50") +  xlab("Group") + ylab("Effect size") +  ylim(-25,5) +
   theme_classic() + 
   theme(text = element_text(size = 15), legend.position="none", axis.text = element_text(color = "black"), 
@@ -2525,9 +2540,9 @@ p1 <- ggplot(BRET_mutants_update_motif, aes(x=interaction(mutation_location,exp_
   scale_x_discrete(labels = c("Core","Flank","Core","Flank")) 
 
 p2 <- ggplot(BRET_mutants_update_motif, aes(x=interaction(mutation_location,exp_conclusion), y=tstat_cBRET)) + 
-  geom_quasirandom(size=2, alpha=1, aes(color=mutation_location)) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
-  geom_boxplot(color="black", alpha=0.1, width=0.5, lwd=0.4, outlier.size = 1, outlier.alpha = 1) + 
-  scale_color_manual(values=c("forestgreen","limegreen")) +
+  geom_quasirandom(size=2, alpha=1, aes(color=exp_conclusion)) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
+  geom_boxplot(color="black",  alpha=0.1,  width=0.5, lwd=0.4, outlier.size = 0.5, outlier.alpha = 1) + 
+  scale_color_manual(values=c("#00548C","#56B4E9")) +
   ggtitle("maxBRET") +  xlab("Group") + ylab("Effect size") + ylim(-25,5) +
   theme_classic() + 
   theme(text = element_text(size = 15), legend.position="none", axis.text = element_text(color = "black"), 
@@ -2538,7 +2553,7 @@ p2 <- ggplot(BRET_mutants_update_motif, aes(x=interaction(mutation_location,exp_
 grid.arrange(p1, p2,  widths=c(6,5), nrow=1)
 
 # SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_scores_BRET.tiff", units="cm", width=11, height=8, res=800)
+tiff("Figures/Figure4_graphics/BRET_mutants_scores_BRET.tiff", units="cm", width=11, height=7, res=800)
 grid.arrange(p1, p2, widths=c(6,5),  nrow=1)
 dev.off()
 
@@ -2546,10 +2561,11 @@ dev.off()
 ```
 
 ```{r Figure4_Graph_G}
+BRET_mutants_update$exp_conclusion <- ordered(BRET_mutants_update$exp_conclusion, levels = c("disrupting","not_disrupting"))
 p1 <- ggplot(BRET_mutants_update , aes(x=structural_region, y=tstat_bret50)) + 
   geom_quasirandom(size=2, alpha=1, aes(color=exp_conclusion)) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
   geom_boxplot(color="black", alpha=0.1, width=0.5, lwd=0.4, outlier.size = 1, outlier.alpha = 1) + 
-  scale_color_manual(values=c("darkgrey","#006AB4")) +
+  scale_color_manual(values=c("#00548C","#56B4E9")) +
   ggtitle("BRET50") +  xlab("Group") + ylab("Effect size") +  ylim(-25,5) +
   theme_classic() + 
   theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black"), 
@@ -2560,7 +2576,7 @@ p1 <- ggplot(BRET_mutants_update , aes(x=structural_region, y=tstat_bret50)) +
 p2 <- ggplot(BRET_mutants_update , aes(x=structural_region, y=tstat_cBRET)) + 
   geom_quasirandom(size=2, alpha=1, aes(color=exp_conclusion)) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
   geom_boxplot(color="black", alpha=0.1, width=0.5, lwd=0.4, outlier.size = 1, outlier.alpha = 1) + 
-  scale_color_manual(values=c("darkgrey","#006AB4")) +
+  scale_color_manual(values=c("#00548C","#56B4E9")) +
   ggtitle("maxBRET") +  xlab("Group") + ylab("Effect size") +  ylim(-25,5) +
   theme_classic() + 
   theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black"), 
@@ -2571,16 +2587,19 @@ grid.arrange(p1, p2, widths=c(7,6), nrow=1)
 
 
 # SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_regions_BRET.tiff", units="cm", width=15, height=10, res=800)
+tiff("Figures/Figure4_graphics/BRET_mutants_regions_BRET.tiff", units="cm", width=15, height=9, res=800)
 grid.arrange(p1, p2, widths=c(7,6), nrow=1)
 dev.off()
 ```
 
 ```{r Figure4_Graph_H}
+BRET_mutants_update$exp_conclusion <- ordered(BRET_mutants_update$exp_conclusion, levels = c("not_disrupting","disrupting"))
+
+
 ggplot(BRET_mutants_update, aes(y=mutation_location, fill=as.factor(exp_conclusion))) + 
   geom_bar(position="fill", width = 0.6, color="black", size=0.4) +
   ylab("Fraction DMIs perturbed") + xlab("Mutation location") + 
-  theme_minimal() + scale_fill_manual(values=c("darkgrey","#006AB4")) + labs(fill = "Interaction") +
+  theme_minimal() + scale_fill_manual(values=c("#CADCE8","#00548C")) + labs(fill = "Interaction") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), legend.position="none", 
         axis.ticks = element_line(size = 0.5), panel.grid.minor = element_blank(), axis.text = element_text(color = "black"))  + 
   scale_y_discrete(limits=rev, labels = rev(strc_categories)) 
@@ -2588,17 +2607,18 @@ ggplot(BRET_mutants_update, aes(y=mutation_location, fill=as.factor(exp_conclusi
 p1 <- ggplot(BRET_mutants_update, aes(y=structural_region, fill=as.factor(exp_conclusion))) + 
   geom_bar(position="fill", width = 0.6, color="black", size=0.4) +
   ylab("Structural region") + xlab("Fraction DMIs perturbed") + 
-  theme_minimal() + scale_fill_manual(values=c("darkgrey","#006AB4")) + labs(fill = "Interaction") +
+  theme_minimal() + scale_fill_manual(values=c("#CADCE8","#00548C")) + labs(fill = "Interaction") +
   theme(text = element_text(size = 20),  panel.grid.minor = element_blank(), legend.position="none",
         axis.ticks = element_line(size = 0.5), panel.grid.major = element_blank(), 
         axis.ticks.y = element_line(size = 0), axis.text = element_text(color = "black"))  + 
-  scale_y_discrete(limits=rev, labels = rev(strc_categories)) 
+  scale_y_discrete(limits=rev, labels = rev(strc_categories)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) 
 
 p1 +  geom_text(aes(label = ..count..), stat = "count", vjust = -0.1,hjust= 1, position = position_fill(0.25), size = 3) +
   geom_text(stat='prop', vjust=-0.1, hjust= -0.1, position = position_fill(0.25), size=3) 
 
 # SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_regions_2.tiff", units="cm", width=12, height=8, res=800)
+tiff("Figures/Figure4_graphics/BRET_mutants_regions_2.tiff", units="cm", width=11, height=8, res=800)
 p1
 dev.off()
 
@@ -2612,7 +2632,7 @@ p2 <- ggplot(BRET_mutants_update %>% select(aa_change, structural_region, exp_co
              aes(y=structural_region, fill=as.factor(exp_conclusion))) + 
   geom_bar(position="fill", width = 0.6, color="black", size=0.4) +
   xlab("Structural region") + ylab("Fraction DMIs perturbed") + 
-  theme_minimal() + scale_fill_manual(values=c("darkgrey","#006AB4")) + labs(fill = "Disruption") +
+  theme_minimal() + scale_fill_manual(values=c("#CADCE8","#00548C")) + labs(fill = "Disruption") +
   theme(text = element_text(size = 20),  panel.grid.minor = element_blank(), legend.position="none",
         axis.ticks = element_line(size = 0.5), panel.grid.major = element_blank(), 
         axis.ticks.y = element_line(size = 0), axis.text = element_text(color = "black"))   + 
@@ -2630,13 +2650,14 @@ p3 <- ggplot(BRET_mutants_update %>% select(aa_change, structural_region, exp_co
   theme(text = element_text(size = 20),  panel.grid.minor = element_blank(), legend.position="none",
         axis.ticks = element_line(size = 0.5), panel.grid.major = element_blank(), 
         axis.ticks.y = element_line(size = 0), axis.text = element_text(color = "black"))   + 
-  scale_y_discrete(limits=rev, labels = rev(strc_categories)) 
+  scale_y_discrete(limits=rev, labels = rev(strc_categories)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) 
 
 p3 +  geom_text(aes(label = ..count..), stat = "count", vjust = -0.1,hjust= 1, position = position_fill(0.25), size = 3) +
   geom_text(stat='prop', vjust=-0.1, hjust= -0.1, position = position_fill(0.25), size=3) 
 
 # SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_AM_2.tiff", units="cm", width=12, height=8, res=800)
+tiff("Figures/Figure4_graphics/BRET_mutants_AM_2.tiff", units="cm", width=11, height=8, res=800)
 p3
 dev.off()
 
@@ -2653,14 +2674,15 @@ p4 <- ggplot(BRET_mutants_update %>% select(aa_change, structural_region, exp_co
   theme(text = element_text(size = 20),  panel.grid.minor = element_blank(), legend.position="none",
         axis.ticks = element_line(size = 0.5), panel.grid.major = element_blank(), 
         axis.ticks.y = element_line(size = 0), axis.text = element_text(color = "black"))   + 
-  scale_y_discrete(limits=rev, labels = rev(strc_categories)) 
+  scale_y_discrete(limits=rev, labels = rev(strc_categories)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) 
 
 p4 +  geom_text(aes(label = ..count..), stat = "count", vjust = -0.1,hjust= 1, position = position_fill(0.25), size = 3) +
   geom_text(stat='prop', vjust=-0.1, hjust= -0.1, position = position_fill(0.25), size=3) 
 
 
 # SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_CV_2.tiff", units="cm", width=12, height=8, res=800)
+tiff("Figures/Figure4_graphics/BRET_mutants_CV_2.tiff", units="cm", width=11, height=8, res=800)
 p4
 dev.off()
 
@@ -2672,12 +2694,37 @@ dev.off()
 
 
 BRET_mutants_update %>% filter(structural_region=="m_interface")
-ggplot(BRET_mutants_update %>% select(aa_change, structural_region, exp_conclusion,AlphaMissense) %>% unique(), 
+
+p_legend <- ggplot(BRET_mutants_update %>% select(aa_change, structural_region, exp_conclusion,AlphaMissense) %>% unique(), 
              aes(y=structural_region, fill=AlphaMissense)) + 
   geom_bar(position="fill", width = 0.6, color="black", size=0.4) +
   ylab("Structural region") + xlab("Variant fraction") + 
-  theme_minimal() + scale_fill_manual(values=colors_Var, guide = guide_legend(theme = theme(
-      legend.direction = "horizontal", legend.title = element_text(size=20), legend.text = element_text(size=20)))) + labs(fill = "AlphaMissense") + guides(col = guide_legend(ncol = 3))
+  theme_minimal()  
+  
+p_legend +  scale_fill_manual(values=colors_Var, guide = guide_legend(theme = theme(
+      legend.direction = "horizontal", legend.title = element_text(size=20), legend.text = element_text(size=20)))) + 
+  labs(fill = "AlphaMissense") + guides(col = guide_legend(ncol = 3))
+
+p_legend <- ggplot(BRET_mutants_update, aes(y=structural_region, fill=as.factor(exp_conclusion))) + 
+  geom_bar(position="fill", width = 0.6, color="black", size=0.4) +
+  ylab("Structural region") + xlab("Fraction DMIs perturbed") + 
+  theme_minimal() + scale_fill_manual(values=c("#CADCE8","#00548C")) + labs(fill = "Interaction")
+
+p_legend +  scale_fill_manual(values=c("#00548C","#CADCE8"),  labels=c( "Disrupting","Not-disrupting"), guide = guide_legend(theme = theme(
+      legend.direction = "horizontal", legend.title = element_text(size=20), legend.text = element_text(size=20)))) + 
+  labs(fill = "Conclusion") + guides(col = guide_legend(ncol = 3)) + scale_y_discrete(limits=rev)
+
+p_legend <- ggplot(BRET_mutants_update %>% select(aa_change, structural_region, exp_conclusion, ClinVar) %>% unique(), 
+             aes(y=structural_region, fill=ClinVar)) + 
+  geom_bar(position="fill", width = 0.6, color="black", size=0.4) +
+  ylab("Structural region") + xlab("Variant fraction") + 
+  theme_minimal() + scale_fill_manual(values=colors_Var[3:4]) + labs(fill = "ClinVar")
+
+p_legend +  scale_fill_manual(values=colors_Var[3:4], guide = guide_legend(theme = theme(
+      legend.direction = "vertical", legend.title = element_text(size=20), legend.text = element_text(size=20)))) + 
+  labs(fill = "ClinVar") + guides(col = guide_legend(ncol = 3))
+
+
 ```
 
 ```{r Figure4_Graph_Supp_Scores}
@@ -2687,7 +2734,8 @@ p1 <- ggplot(BRET_mutants_update_motif, aes(x=mutation_location, y=pLDDT)) +
   geom_hline(yintercept = 80, color="red") + ylim(25,100) + scale_color_manual(values=c("forestgreen","limegreen")) +
   ggtitle("BRET motif mut") +  xlab("Motif region") + ylab("Residue pLDDT") + 
   theme_classic() + 
-  theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black")) 
+  theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black")) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
 
 p2 <- ggplot(BRET_mutants_update_motif, aes(x=mutation_location, y=RSA)) + 
   geom_quasirandom(size=2, alpha=1, aes(color=mutation_location)) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
@@ -2695,7 +2743,8 @@ p2 <- ggplot(BRET_mutants_update_motif, aes(x=mutation_location, y=RSA)) +
   geom_hline(yintercept = 0.36, color="red") + ylim(0,1) + scale_color_manual(values=c("forestgreen","limegreen")) +
   ggtitle("BRET motif mut") +  xlab("Motif region") + ylab("Residue RSA") + 
   theme_classic() + 
-  theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black")) 
+  theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black")) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
 
 p3 <- ggplot(BRET_mutants_update_motif, aes(x=mutation_location, y=deltaRSA)) + 
   geom_quasirandom(size=2, alpha=1, aes(color=mutation_location)) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
@@ -2703,17 +2752,18 @@ p3 <- ggplot(BRET_mutants_update_motif, aes(x=mutation_location, y=deltaRSA)) +
   geom_hline(yintercept = -0.05, color="red") + ylim(-1,0) + scale_color_manual(values=c("forestgreen","limegreen")) +
   ggtitle("BRET motif mut") +  xlab("Motif region") + ylab("Residue \u0394 RSA") + 
   theme_classic() + 
-  theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black")) 
+  theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black")) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
 
 grid.arrange(p1, p2, p3,  nrow=1)
 
 # SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_scores.tiff", units="cm", width=20, height=8, res=800)
+tiff("Figures/SuppFig_BRET_variants/BRET_mutants_scores.tiff", units="cm", width=18, height=8, res=800)
 grid.arrange(p1, p2, p3,  nrow=1)
 dev.off()
 
 # SAVE PDF
-pdf("Figures/Figure4_graphics/BRET_mutants_scores.pdf", width=8, height=4)
+pdf("Figures/SuppFig_BRET_variants/BRET_mutants_scores.pdf", width=8, height=4)
 grid.arrange(p1, p2, p3,  nrow=1)
 dev.off()
 ```
@@ -2770,10 +2820,10 @@ coeff <-  max(scores_count$count_ppi) /max(scores_count$count_dmi)
 p3 <- ggplot(scores_count, aes(x=bin)) +  geom_line( aes(y=count_dmi), size=1) + geom_line( aes(y=count_ppi / coeff)) + 
   annotate(geom="text", label=c("0.6","DMI","PPI"), x=c(0.68,0.3,0.45), y=c(7700,6400,7600), size=5, color=c("red","black","black") )+ 
   geom_vline(xintercept = 0.6, size=0.5, color="red") + 
-  ggtitle("HuRI DMI scores") + xlab("RF DMI score") +
+  ggtitle("AF DMI scores") + xlab("Model confidence score") +
   theme_classic() + 
   theme(text = element_text(size = 20), axis.text = element_text(color = "black"), axis.ticks = element_line(linewidth = 1))+ 
-  scale_y_continuous(labels = scales::comma, , limits = c(0,8000), name = "DMI count", sec.axis = sec_axis(~.*coeff, name="PPI count"))
+  scale_y_continuous(labels = scales::comma, , limits = c(0,8000), name = "DMI model count", sec.axis = sec_axis(~.*coeff, name="PPI count"))
 p3
 
 # SAVE TIFF
@@ -2851,10 +2901,13 @@ p2 <-ggplot(Model_metrics_fragments %>% filter(Fragment!="C"), aes(x=Fragment, y
   scale_color_manual(values=colors_DMI) + 
   theme_classic() +  
   theme(text = element_text(size = 20), axis.text = element_text(color = "black"), 
-        legend.position = "none", axis.ticks = element_line(linewidth = 1))
+        legend.position = "none", axis.ticks = element_line(linewidth = 1))+
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
+
+grid.arrange(p1, p2,nrow=1)
 
 # SAVE PNG
-png("Figures/Figure5_graphics/Fragments_pLDDT_RSA.png", units="cm", width=18, height=10, res=800)
+png("Figures/Figure5_graphics/Fragments_pLDDT_RSA.png", units="cm", width=18, height=9, res=800)
 grid.arrange(p1, p2,nrow=1)
 dev.off()
 
@@ -2863,7 +2916,7 @@ dev.off()
 # grid.arrange(p1, p2,nrow=1)
 # dev.off()
 
-grid.arrange(p1, p2,nrow=1)
+
 ```
 
 ```{r Figure5_Graph_D}
@@ -2917,11 +2970,12 @@ p3 <-ggplot(Model_metrics_motif, aes(x=Motif_region, y=Acc_change, color=Motif_r
   scale_color_manual(values=c("limegreen","forestgreen","limegreen")) + 
   theme_classic() +  
   theme(text = element_text(size = 20), legend.position = "none", 
-        axis.text = element_text(color = "black"), axis.ticks = element_line(linewidth = 1))
+        axis.text = element_text(color = "black"), axis.ticks = element_line(linewidth = 1)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 4)) 
 p3
 
 # SAVE PNG
-png("Figures/Figure5_graphics/Motif_regions_deltaRSA.png", units="cm", width=10, height=8, res=800)
+png("Figures/SuppFig_AFmodels_graphics/Motif_regions_deltaRSA.png", units="cm", width=10, height=8, res=800)
 p3
 dev.off()
 
@@ -2974,13 +3028,15 @@ p1 <- ggplot(DMI_AF_mut_hq %>% filter(structural_region!="other"), aes(y=structu
   xlab("Variant fraction") + ylab("Structural region") + 
   theme_minimal() + scale_fill_manual(values=colors_Var) + labs(fill = "Pathogenicity") +
   theme(text = element_text(size = 20), legend.position = "none", axis.text = element_text(color = "black"),
-        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),  axis.ticks = element_line(size = 0.5))  + 
-  scale_y_discrete(limits=rev, labels = rev(strc_categories)) 
+        axis.ticks = element_line(size = 0.5), panel.grid.major = element_blank(), 
+        axis.ticks.y = element_line(size = 0), panel.grid.minor = element_blank())  + 
+  scale_y_discrete(limits=rev, labels = rev(strc_categories)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) 
 p1 +  geom_text(aes(label = ..count..), stat = "count", vjust = -0.1,hjust= 1, position = position_fill(0.25), size = 3) +
   geom_text(stat='prop', vjust=-0.1, hjust= -0.1, position = position_fill(0.25), size=3) 
 
 # SAVE TIFF
-tiff("Figures/Figure5_graphics/ClinVar_modelRegion.tiff", units="cm", width=12, height=8, res=800)
+tiff("Figures/Figure5_graphics/ClinVar_modelRegion.tiff", units="cm", width=11, height=8, res=800)
 p1
 dev.off()
 
@@ -3035,11 +3091,11 @@ p1 <- ggplot(Model_metrics_motif %>% filter(Motif_flanks> -5 & Motif_flanks < 5)
   geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
   ggtitle("Motif confidence") + xlab(graph_x) + ylab(graph_y) + 
   theme_classic() + scale_color_manual(values=colors_flanks) +
-  theme(text = element_text(size = 20), legend.position = "none", axis.line = element_line(size = 1) , axis.ticks = element_line(linewidth = 1))
+  theme(text = element_text(size = 20), legend.position = "none", axis.text = element_text(color = "black"))
 p1
 
 # SAVE PNG
-png("Figures/Figure5_graphics/Motif_flanks_pLDDT.png", units="cm", width=12, height=8, res=800)
+png("Figures/SuppFig_AFmodels_graphics/Motif_flanks_pLDDT.png", units="cm", width=12, height=8, res=800)
 p1
 dev.off()
 
@@ -3048,11 +3104,12 @@ p2 <- ggplot(Model_metrics_motif %>% filter(Motif_flanks> -5 & Motif_flanks < 5)
   geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
   ggtitle("Motif flank RSA") + xlab(graph_x) + ylab(graph_y) + 
   theme_classic() + scale_color_manual(values=colors_flanks) +
-  theme(text = element_text(size = 20), legend.position = "none", axis.line = element_line(size = 1) , axis.ticks = element_line(linewidth = 1))
+  theme(text = element_text(size = 20), legend.position = "none", axis.text = element_text(color = "black"))+
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 4)) 
 p2
 
 # SAVE PNG
-png("Figures/Figure5_graphics/Motif_flanks_RSA.png", units="cm", width=12, height=8, res=800)
+png("Figures/SuppFig_AFmodels_graphics/Motif_flanks_RSA.png", units="cm", width=12, height=8, res=800)
 p2
 dev.off()
 
@@ -3061,11 +3118,12 @@ p3 <-ggplot(Model_metrics_motif %>% filter(Motif_flanks> -5 & Motif_flanks < 5),
   geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
   ggtitle("Motif flank \u0394 RSA") + xlab(graph_x) + ylab(graph_y) + 
   theme_classic() + scale_color_manual(values=colors_flanks) +
-  theme(text = element_text(size = 20), legend.position = "none", axis.line = element_line(size = 1) , axis.ticks = element_line(linewidth = 1))
+  theme(text = element_text(size = 20), legend.position = "none", axis.text = element_text(color = "black")) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 4)) 
 p3
 
 # SAVE PNG
-png("Figures/Figure5_graphics/Motif_flanks_deltaRSA.png", units="cm", width=12, height=8, res=800)
+png("Figures/SuppFig_AFmodels_graphics/Motif_flanks_deltaRSA.png", units="cm", width=12, height=8, res=800)
 p3
 dev.off()
 
@@ -3074,7 +3132,7 @@ ggplot(Model_metrics_motif %>% filter(Motif_flanks> -5 & Motif_flanks < 5 & ELM_
   geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
   ggtitle("Motif flank \u0394 RSA") + xlab(graph_x) + ylab(graph_y) + 
   theme_classic() + scale_color_manual(values=colors_flanks) +
-  theme(text = element_text(size = 20), legend.position = "none", axis.line = element_line(size = 1) , axis.ticks = element_line(linewidth = 1))
+  theme(text = element_text(size = 20), legend.position = "none", axis.text = element_text(color = "black"))
 
 Model_metrics_motif %>% filter(Motif_flanks> -5 & Motif_flanks < 5 & ELM_type=="TRG") %>% select(ELM_class) %>% unique() %>% unlist()
 ```
@@ -3100,8 +3158,11 @@ p2a <- ggplot(DMI_AF_mut_hq %>% filter(structural_region!="Other" & Pathogenicit
   geom_bar(position="fill", width = 0.6, color="black", size=0.4)  +
   xlab("Uncertain variant fraction") + ylab("Structural region") + 
   theme_minimal() + scale_fill_manual(values=colors_Var) + labs(fill = "Alpha Missense") +
-  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), panel.grid.major = element_blank(), legend.position="none", panel.grid.minor = element_blank())  + 
-  scale_y_discrete(limits=rev, labels = rev(strc_categories)) 
+  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), 
+        axis.ticks = element_line(size = 0.5), panel.grid.major = element_blank(), 
+        axis.ticks.y = element_line(size = 0), legend.position="none", panel.grid.minor = element_blank())  + 
+  scale_y_discrete(limits=rev, labels = rev(strc_categories)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) 
 
 p2a +  geom_text(aes(label = ..count..), stat = "count", vjust = -0.1,hjust= 1, position = position_fill(0.25), size = 3) +
   geom_text(stat='prop', vjust=-0.1, hjust= -0.1, position = position_fill(0.25), size=3)
