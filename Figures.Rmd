@@ -53,18 +53,18 @@ strc_categories <- c("D. interface", "D. buried","D. surface", "M. interface", "
 
 
 ```{r Figure1_Data_Tables}
-# Load all ClinVar variant
+# Load all ClinVar variants
 ClinVar_mutations <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/All_DMIs-All_mutations/DDD_and_clinvar_mutations_2023_release.csv", col_names = T)
 
-# Load per residue protein disorder scores
-Disorder_pLDDT <- read_tsv(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/AFDB_HumanReferenceProteome/proteins_pLDDT_values_byResidue.txt", col_names = T)
-Disorder_IUPred <- read_tsv(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/AFDB_HumanReferenceProteome/CANO_ISO_SEQUENCES_IUPRed_LONG_disorder_byResidue.txt", col_names = T) %>% rename(UniProt_ID=ID, Residue_n=Residue_N)
-
-# Edit ClinVar table
+# Reduce ClinVar table info to only unique protein variants
 ClinVar_mutations <- ClinVar_mutations %>% select(uniprot_id, gene_symbol, aa_change, aa_pos, pathogenicity) %>% unique() # Keep columns with relevant information (excluding nucleotide information)
 ClinVar_mutations$pathogenicity <- toTitleCase(ClinVar_mutations$pathogenicity) # Capitalize pathogenicity categories
 ClinVar_mut_dis <-  ClinVar_mutations %>% rename(UniProt_ID = uniprot_id, Residue_n = aa_pos) %>% # Rename columns
   mutate(Residue= amino_acid_map[gsub("[0-9].*?$","",aa_change)] ) # Change variant format
+
+# Load per residue protein disorder scores
+Disorder_pLDDT <- read_tsv(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/AFDB_HumanReferenceProteome/proteins_pLDDT_values_byResidue.txt", col_names = T)
+Disorder_IUPred <- read_tsv(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/AFDB_HumanReferenceProteome/CANO_ISO_SEQUENCES_IUPRed_LONG_disorder_byResidue.txt", col_names = T) %>% rename(UniProt_ID=ID, Residue_n=Residue_N)
 
 # Combine ClinVar and disorder tables 
 ClinVar_mut_dis <- left_join(ClinVar_mut_dis,Disorder_pLDDT,by=c("UniProt_ID","Residue","Residue_n"))
@@ -80,7 +80,8 @@ pLDDT_thrs <- 70 # as in AFDB includes Low and very Low # also by further refere
 IUPred_thrs <- 0.4 # as in Davey et al. 
 
 # Use thresholds to categorise variants into Order and Disorder 
-ClinVar_mut_dis <- ClinVar_mut_dis %>% mutate(dis_pLDDT=case_when(avg_pLDDT < pLDDT_thrs ~ 1, avg_pLDDT >= pLDDT_thrs ~ 0  )) %>% # using pLDDT values
+ClinVar_mut_dis <- ClinVar_mut_dis %>% 
+  mutate(dis_pLDDT=case_when(avg_pLDDT < pLDDT_thrs ~ 1, avg_pLDDT >= pLDDT_thrs ~ 0  )) %>% # using pLDDT values
   mutate(dis_IUPred=case_when(avg_IUPred >= IUPred_thrs ~ 1, avg_IUPred < IUPred_thrs ~ 0 )) # using IUPred scores
 
 ```
@@ -109,6 +110,8 @@ Pathogenicity_IUPred_chisq <- chisq.test(Pathogenicity_IUPred_dt)
 
 Pathogenicity_IUPred_PU_dt <- Pathogenicity_IUPred_dt[3:4,] # Only VUS and Pathogenic
 Pathogenicity_IUPred_PU_chisq <- chisq.test(Pathogenicity_IUPred_PU_dt)
+
+rm(Pathogenicity_pLDDT_table, Pathogenicity_IUPred_table)
 ```
 
 ```{r Figure1_SupData_AlphaMissense}
@@ -123,9 +126,10 @@ AM_ClinVar_proteins <- AM_ClinVar_proteins %>% mutate(AM_pathogenicity=case_when
 #AM_ClinVar_proteins$AM_pathogenicity <- toTitleCase(AM_ClinVar_proteins$AM_pathogenicity) # Capitalize pathogenicity categories
 
 # Combine AlphaMissense table with ClinVar one
-ClinVar_mut_dis <- ClinVar_mut_dis %>% mutate(R_variant=amino_acid_map[gsub("^.*?_","",gsub("[0-9]{1,5}","_",aa_change))] ) %>% 
-  mutate(AA_change=paste(Residue,Residue_n,R_variant, sep=""))
-ClinVar_mut_dis <- left_join(ClinVar_mut_dis, AM_ClinVar_proteins, by=c("UniProt_ID", "AA_change"))
+ClinVar_mut_dis <- ClinVar_mut_dis %>% 
+  mutate(R_variant=amino_acid_map[gsub("^.*?_","",gsub("[0-9]{1,5}","_",aa_change))] ) %>% 
+  mutate(AA_change=paste(Residue,Residue_n,R_variant, sep="")) # Create/edit columns to be able to combine tables
+ClinVar_mut_dis <- left_join(ClinVar_mut_dis, AM_ClinVar_proteins, by=c("UniProt_ID", "AA_change")) 
 ClinVar_mut_dis$AM_pathogenicity <- ordered(ClinVar_mut_dis$AM_pathogenicity, levels = c("Benign","Ambiguous","Pathogenic"))
 
 
@@ -133,14 +137,15 @@ ClinVar_mut_dis$AM_pathogenicity <- ordered(ClinVar_mut_dis$AM_pathogenicity, le
 ```
 
 ```{r Figure1_Data_DMIs}
-# Load all DMI predictions
-All_DMIs <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/All_DMIs-All_mutations/HuRI_BioPlex_lit17_union.csv")
+# Load all DMI predictions to get all ELM classes and types
+All_DMIs <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/All_DMIs-All_mutations/HuRI_BioPlex_lit17_union.csv", show_col_types = F)
 All_ELM_classes <- All_DMIs %>% select(Elm) %>% unique() %>% mutate(ELM_type=gsub("_.*?$","",Elm))
-All_ELM_types <-  All_ELM_classes %>% count(ELM_type)
+All_ELM_types <-  All_ELM_classes %>% count(ELM_type) # count for DMI predictor image
+rm(All_DMIs, All_ELM_classes)
 
-# Keep only HuRI ones
-HuRI_DMIs <- All_DMIs %>% filter(Source_HuRI=="1") %>% mutate(ELM_type=gsub("_.*?$","", Elm)) 
-HuRI_DMIs <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/HuRI_human.csv")
+# Load only HuRI human ones
+#HuRI_DMIs <- All_DMIs %>% filter(Source_HuRI=="1") %>% mutate(ELM_type=gsub("_.*?$","", Elm)) 
+HuRI_DMIs <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/HuRI_human.csv", show_col_types = F)
 
 # Filter HuRI DMI table to get scores
 HuRI_DMI_scores <- HuRI_DMIs %>% select(intx_ID, SLiMProtein, Accession, SLiMMatch, DomainProtein, DomainID1, DomainMatch1, DMIMatchScore)
@@ -183,30 +188,34 @@ cc_v <- c() ## DMI count
 pp_v <- c() ## PPI count
 
 for(i in seq(from = 0, to = 1, by = 0.05)){
-  cc <- HuRI_DMI_scores %>% filter(DMIMatchScore >= i) %>% nrow()
-  pp <- HuRI_DMI_scores %>% filter(DMIMatchScore >= i) %>% select(intx_ID) %>% unique() %>% nrow()
+  cc <- HuRI_DMI_scores %>% filter(DMIMatchScore >= i) %>% nrow() #counting DMIs above a certain threshold
+  pp <- HuRI_DMI_scores %>% filter(DMIMatchScore >= i) %>% select(intx_ID) %>% unique() %>% nrow() # counting the PPI of the previously filered DMIs
   cc_v <- c(cc_v, cc)
   pp_v <- c(pp_v, pp)
 }
 
+# Add counts to tibble
 DMIscores_count$count_dmi <-cc_v 
 DMIscores_count$count_ppi <-pp_v 
 
-
+rm(HuRI_DMI_scores)
 ```
 
 ```{r Figure1_SuppData_ELMclasses}
 # Load ELM instances and classes
 elm_instances <- read_tsv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/ELM_Interacting_Regions_instances.tsv", col_names = T)
 
-elm_instances <- elm_instances %>% filter(motif_protein_species=="Homo sapiens" & curators_instance_assessment=="true positive") %>% select(ELM_Class, motif_protein_uniprot_accession, motif_start_residue_number, motif_end_residue_number, domain_protein_uniprot_accession)
-elm_instances$SLiMMatch <- paste(elm_instances$motif_start_residue_number, elm_instances$motif_end_residue_number, sep="-")
-elm_instances <- elm_instances %>% select(-motif_start_residue_number, -motif_end_residue_number)
-elm_instances$ELM_instance <- "1"
+# Reduce instance table to only human ones and the necessary columns
+elm_instances <- elm_instances %>% 
+  filter(motif_protein_species=="Homo sapiens" & curators_instance_assessment=="true positive") %>% 
+  select(ELM_Class, motif_protein_uniprot_accession, motif_start_residue_number, motif_end_residue_number, domain_protein_uniprot_accession)
+elm_instances <-  elm_instances %>% 
+  mutate(SLiMMatch=paste(motif_start_residue_number, motif_end_residue_number, sep="-")) %>%
+  select(-motif_start_residue_number, -motif_end_residue_number) %>% mutate(ELM_instance = "1")
 colnames(elm_instances)[c(1:3)] <- c("ELM_class", "SLiMProtein", "DomainProtein")
-elm_instances 
 
-elm_instances %>% filter(ELM_class %in% HuRI_DMIs$ELM_class) %>% select(ELM_class) %>% unique() # 87 ELM classes
+elm_instances %>% filter(ELM_class %in% HuRI_DMIs$ELM_class) %>% select(ELM_class) %>% unique() %>% nrow()
+# 87 ELM classes from all 108 are also present in HuRI classes
 
 DMI_ELM_instances <- HuRI_DMIs %>% filter(DMIMatchScore >= 0.7) %>% 
   select(intx_ID, SLiMProtein, Accession, ELM_class, SLiMMatch, DomainProtein, DomainID1, DomainName1, DomainMatch1, DMIMatchScore, ELM_type)
@@ -216,31 +225,13 @@ DMI_ELM_instances <- DMI_ELM_instances %>% mutate(ELM_instance=case_when(is.na(E
 
 elm_motifs <- elm_instances %>% select(ELM_class, SLiMProtein, SLiMMatch) %>% mutate(ELM_motif="1")
 DMI_ELM_instances <- left_join(DMI_ELM_instances, elm_motifs)
+rm(elm_motifs)
 DMI_ELM_instances <- DMI_ELM_instances %>% mutate(ELM_motif=case_when(is.na(ELM_motif) ~ "0", TRUE ~  ELM_motif))
 DMI_ELM_instances <- DMI_ELM_instances %>% unique()
 
 DMI_ELM_instances %>% count(ELM_instance)
 DMI_ELM_instances %>% count(ELM_motif)
 DMI_ELM_instances %>% filter(ELM_instance=="1")
-
-# 
-# left_join(All_DMIs, elm_instances) %>% count(ELM_instance)
-# left_join(HuRI_DMIs, elm_instances) %>% count(ELM_instance)
-# left_join(DMI_ELM_instances, elm_instances) %>% count(ELM_instance)
-# Only 31 high confidence HuRI predicted DMIs correspond to motif-domain ELM instaces 
-# Reason might include any/some of the following: 
-### DMI pair is not on HuRI
-### DMI doesn't have a high score  
-### The whole predictions only have around 7k human proteins, high-scored ones only 1.4 K
-### ELM has many instances, and classes, that are not human
-# 
-# left_join(DMI_ELM_instances, elm_instances, by = c("Elm", "SLiMProtein", "SLiMMatch"))  %>% count(ELM_instance)
-# elm_instances %>% filter(Elm=="DOC_ANK_TNKS_1")
-# DMI_ELM_instances %>% filter(Elm=="DOC_ANK_TNKS_1" & SLiMProtein=="Q7Z6K5") #456-465
-# All_DMIs %>% filter(Elm=="DOC_ANK_TNKS_1" & SLiMProtein=="Q7Z6K5")
-
-
-
 
 HURI_ELM_DMI_PPI_list <- list(CLV = HuRI_DMIs %>% filter(ELM_type=="CLV" & DMIMatchScore >=0.7 ) %>% select(intx_ID) %>% unique() %>% unlist(),
                               DEG = HuRI_DMIs %>% filter(ELM_type=="DEG" & DMIMatchScore >=0.7) %>% select(intx_ID) %>% unique() %>% unlist(), 
@@ -253,52 +244,64 @@ DMI_ELM_classes <- HuRI_DMIs %>% filter(DMIMatchScore >= 0.7) %>% select(Accessi
 ```
 
 
-```{r Figure2_Data}
-HURI_ClinVar_mutation <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/DMI_human_HuRI_overlap_clinvar_2023_release.csv")
-HURI_ClinVar_mutation$fragment_type <- toTitleCase(HURI_ClinVar_mutation$fragment_type)
-HURI_ClinVar_mutation$pathogenicity <- toTitleCase(HURI_ClinVar_mutation$pathogenicity)
-HURI_ClinVar_mutation <-  HURI_ClinVar_mutation %>% mutate(fragment_type=case_when(fragment_type=="Slim" ~ "Motif", TRUE ~ fragment_type))
 
-HURI_ClinVar_mut_motif <- HURI_ClinVar_mutation %>% filter(fragment_type=="Motif") %>% select(fragment_protein, fragment_id, fragment_pos, pathogenicity) %>% rename(Accession=fragment_id)
+```{r Figure2_Data}
+# Load variants overlap on DMI fragments
+HURI_ClinVar_mutation <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/DMI_human_HuRI_overlap_clinvar_2023_release.csv", show_col_types = F)
+
+# Edit column values for plotting
+HURI_ClinVar_mutation <- HURI_ClinVar_mutation %>% 
+  mutate(fragment_type = toTitleCase(fragment_type)) %>%
+  mutate(pathogenicity = toTitleCase(pathogenicity)) %>% 
+  mutate(fragment_type=case_when(fragment_type=="Slim" ~ "Motif", TRUE ~ fragment_type))
+
+# Define variant table only for motifs to add motif information
+HURI_ClinVar_mut_motif <- HURI_ClinVar_mutation %>% 
+  filter(fragment_type=="Motif") %>% 
+  select(fragment_protein, fragment_id, fragment_pos, aa_change, pathogenicity) %>% 
+  rename(Accession=fragment_id)
+# Add ELM class information to DMI motif variants
 HURI_ClinVar_mut_motif <- left_join(HURI_ClinVar_mut_motif, DMI_ELM_classes, by="Accession")
+
 ```
 
 ```{r Figure2_Data_ELM_pathogenic}
-HURI_ClinVar_mut_motif %>% filter(ELM_type=="DEG" & pathogenicity=="Pathogenic")
-HURI_ClinVar_mutation %>% filter(fragment_type=="Motif" & pathogenicity=="Pathogenic" & fragment_id=="ELME000241")
-# AFF4 (Q9UHB7) 252-260 DEG_SIAH_1 (Pro253Leu, Thr254Ala, Thr254Ser, Arg258Trp, Met260Val)
-HURI_ClinVar_mut_motif %>% filter(ELM_type=="DEG" & pathogenicity=="Pathogenic")
+# Manual checks on pathogenic variants on DMI motif fragments
 
+## Degrons
+HURI_ClinVar_mut_motif %>% filter(ELM_type=="DEG" & pathogenicity=="Benign") %>% select(fragment_protein) #5 proteins from 3 degron classes
+HURI_ClinVar_mut_motif %>% filter(ELM_type=="DEG" & pathogenicity=="Pathogenic" & Accession=="ELME000241")
+# AFF4 (Q9UHB7) 252-260 DEG_SIAH_1 (Pro253Leu, Thr254Ala, Thr254Ser, Arg258Trp, Met260Val)
+
+## Docking
 HURI_ClinVar_mut_motif %>% filter(ELM_type=="DOC" & pathogenicity=="Pathogenic") 
-DOC_prot_path <- HURI_ClinVar_mut_motif %>% filter(ELM_type=="DOC" & pathogenicity=="Pathogenic") %>% select(fragment_protein,Accession) %>% unique() 
-HURI_ClinVar_mutation %>% filter(fragment_type=="Motif" & pathogenicity=="Pathogenic" & fragment_id %in% DOC_prot_path$Accession)
 # 6 motifs - 6 proteins
 HuRI_DMIs %>% filter(SLiMProtein=="P84022" & ELM_class=="DOC_WW_Pin1_4" & SLiMMatch=="5-10") %>% select(DomainProtein) 
 HuRI_DMIs %>% filter(SLiMProtein=="P84022" & ELM_class=="DOC_WW_Pin1_4" ) %>% select(SLiMMatch, DMIMatchScore) %>% unique()
 HURI_ClinVar_mut_motif %>% filter(fragment_protein=="P84022" )
-
 HuRI_DMIs %>% filter(SLiMProtein=="O95817" & ELM_class=="DOC_MAPK_MEF2A_6") %>% select(DomainProtein) 
 
+## Ligand
 HURI_ClinVar_mut_motif %>% filter(ELM_type=="LIG" & pathogenicity=="Pathogenic") 
-LIG_prot_path <- HURI_ClinVar_mut_motif %>% filter(ELM_type=="LIG" & pathogenicity=="Pathogenic") %>% select(fragment_protein,Accession) %>% unique() 
-HURI_ClinVar_mutation %>% filter(fragment_type=="Motif" & pathogenicity=="Pathogenic" & fragment_id %in% LIG_prot_path$Accession) %>% group_by(fragment_protein)
 # 6 motifs - 6 proteins
 
-
+## Modification
 HURI_ClinVar_mut_motif %>% filter(ELM_type=="MOD" & pathogenicity=="Pathogenic") 
 MOD_prot_path <- HURI_ClinVar_mut_motif %>% filter(ELM_type=="MOD" & pathogenicity=="Pathogenic") %>% select(fragment_protein,Accession) %>% unique() 
 HURI_ClinVar_mutation %>% filter(fragment_type=="Motif" & pathogenicity=="Pathogenic" & fragment_id %in% MOD_prot_path$Accession) %>% group_by(fragment_protein) 
 # 2 motifs - 2 proteins
 
-
-HURI_ClinVar_mut_motif %>% filter(ELM_type=="TRG" & pathogenicity=="Pathogenic") 
-HURI_ClinVar_mutation %>% filter(fragment_type=="Motif" & pathogenicity=="Pathogenic" & fragment_id=="ELME000120") %>% group_by(fragment_protein) 
+## Targetting
+HURI_ClinVar_mut_motif %>% filter(ELM_type=="TRG" & pathogenicity=="Pathogenic" & Accession=="ELME000120") %>% group_by(fragment_protein) 
 #HuRi_DMI %>% filter(Accession=="ELME000512" & SLiMProtein=="P30279")
+HuRI_DMIs %>% filter( SLiMProtein=="Q8N0S2")
 
 HuRI_DMIs %>% filter(DMIMatchScore>=0.7 & SLiMProtein=="Q9UHB7" & ELM_class=="DEG_SIAH_1" & SLiMMatch=="252-260") %>% select(DomainName1) %>% unique()
 HuRI_DMIs %>% filter(DMIMatchScore>=0.7 & SLiMProtein=="P40763" & ELM_class=="LIG_SH2_STAT5" & SLiMMatch=="705-708") %>% select(DomainName1) %>% unique()
 HuRI_DMIs %>% filter(DMIMatchScore>=0.7 & SLiMProtein=="P98174" & ELM_class=="LIG_SH3_1" & SLiMMatch=="186-192") %>% select(DomainName1) %>% unique()
 HuRI_DMIs %>% filter(DMIMatchScore>=0.7 & SLiMProtein=="Q8WWZ3" & ELM_class=="LIG_TRAF6" & SLiMMatch=="25-33") %>% select(DomainName1) %>% unique()
+
+
 ```
 
 ```{r Figure2_Data2}
@@ -324,6 +327,18 @@ HURI_ClinVar_DMI_mut_count_DMI <- HURI_ClinVar_DMI_mut_count_DMI %>% mutate(Beni
 
 HURI_ClinVar_DMI_mut_count_DMI_long <- HURI_ClinVar_DMI_mut_count_DMI %>% select(intx_ID, DomainProtein, DomainID1, DomainMatch1, SLiMProtein, Accession, SLiMMatch, Benign, Conflicting, Pathogenic, Uncertain) %>% pivot_longer(names_to = "pathogenicity", cols = Benign:Uncertain) %>% filter(value>0) %>% unique()
 
+temp <- HURI_ClinVar_DMI_mut_count_DMI_long %>% select(DomainProtein, DomainID1, DomainMatch1, SLiMProtein, Accession, SLiMMatch) %>% unique() %>% mutate(Domain_s=as.numeric(gsub("-.*?$","",DomainMatch1)), Domain_e=as.numeric(gsub(".*?-","",gsub("\\|","",DomainMatch1))), Motif_s=as.numeric(gsub("-.*?$","",SLiMMatch)), Motif_e=as.numeric(gsub("^.*?-","",SLiMMatch))) %>% select(-DomainMatch1, -SLiMMatch) %>% mutate(Domain_l=Domain_e-Domain_s, Motif_l=Motif_e-Motif_s) 
+mean(temp$Domain_l) #207
+
+HURI_ClinVar_mutation %>% filter(fragment_type=="Domain") %>% nrow() 
+HURI_ClinVar_DMI_mut_count_DMI_long %>% select(DomainProtein, DomainID1, DomainMatch1) %>% unique() %>% nrow()
+14103/561  #25 mutations per domain
+14103/561/207 # 0.12 mutations per domain residue
+mean(temp$Motif_l) #5.5
+HURI_ClinVar_mutation %>% filter(fragment_type=="Motif") %>% nrow() 
+HURI_ClinVar_DMI_mut_count_DMI_long %>% select(SLiMProtein, Accession, SLiMMatch) %>% unique() %>% nrow()
+3045/5944 # 0.5 mutations per motif
+3045/5944/5.5 #0.09 mutations per motif residue
 ```
 
 ```{r Figure2_Data2_PPI_VariantCount}
@@ -389,6 +404,7 @@ Domain_simple_tb
 Fragment_contingency_dt <- as.table(as.matrix(Fragment_contingency_tb[,1:3]))
 Fragment_contingency_chisq <- chisq.test(Fragment_contingency_dt)
 ```
+
 
 
 ```{r Figure3_data_BRET}
@@ -467,6 +483,8 @@ mutants_BRET <- mutants_BRET %>% mutate(ClinVar=case_when(mutant=="IKZF1 S41L" ~
 BRET_results %>% filter(NL_symbol=="CTBP1" & mCit_symbol=="DMRTB1") %>% arrange(project_id) %>% select(NL_plasmid, mCit_plasmid, tstat_bret50, tstat_cBRET, sig_BRET50, sig_maxBRET)
 
 BRET_results %>% filter(NL_symbol=="SPOP" &  mCit_symbol=="MYD88" ) %>% select(NL_plasmid, mCit_plasmid, project_id, include)
+
+domain_BRET %>% filter(mutant=="CTBP1_C27E")
 ```
 
 ```{r Figure3_data_titration}
@@ -505,6 +523,7 @@ BRET_selection_values <- left_join(BRET_selection, BRET_values_info)
 BRET_mutant_pairs <- BRET_results %>% select(project_id, NL_plasmid_id, mCit_plasmid_id,BRET_category) %>% unique()
 BRET_mutant_pairs <- left_join(BRET_mutant_pairs, BRET_values_info %>% select(project_id, NL_plasmid_id, mCit_plasmid_id,NL_construct, mCit_construct, NL_protein, mCit_protein, test)) %>% unique()
 ```
+
 
 
 ```{r Figure4_data1}
@@ -568,6 +587,7 @@ BRET_mutants_update_motif <-  BRET_mutants_update %>% filter(mutation_location!=
 
 BRET_mutants_update %>% filter(mCit_symbol=="RXRB")
 ```
+
 
 
 ```{r Figure5_data1}
@@ -679,6 +699,7 @@ Scores_json %>% filter(score >= 0.6) %>% select(PPI) %>% unique() %>% nrow()
 
 Scores_json %>% filter(DMI=="Q9Y4K3_SM00061_O_292_507.Q8WWZ3_ELME000133_D_25_33")
 ```
+
 
 
 ```{r Figure6_sankeys_data}
@@ -928,6 +949,10 @@ HURI_ClinVar_mut_motif_2 <- left_join(HURI_ClinVar_mut_motif_2, ClinVar_mut_dis_
 
 AF_model_scores %>% filter()
 # 	Q14145_SM00612_O_317_621.Q86YC2_ELME000390_D_89_94
+
+HURI_ClinVar_mut_motif_summ %>% select(Chain_protein, Fragment_id, fragment_pos) %>% unique()
+HURI_ClinVar_mut_motif_summ %>% count(pathogenicity, variant_match) %>% mutate(proportion=n/nrow(HURI_ClinVar_mut_motif_summ))
+HURI_ClinVar_mut_motif_summ %>% filter(pathogenicity=="Uncertain") %>% count(variant_match) %>% mutate(proportion=n/2657)
 ```
 
 
@@ -1041,7 +1066,7 @@ dev.off()
 
 ```
 
-```{r Figure1_Graphic_F}
+```{r Figure1_Graphic_E}
 p1 <- ggplot(HuRI_DMIs %>% filter(DMIMatchScore >= 0.7), aes(y = ELM_type, fill = ELM_type)) + geom_bar(width = 0.7) + 
   ylab("ELM category") + xlab("DMI number") + 
   scale_fill_manual(values=colors_ELMtypes) + 
@@ -1093,9 +1118,12 @@ dev.off()
 
 ```{r Figure1_Supp_Graphic_ChiSq_pLDDT}
 ### Correlations plots - pLDDT classification
-
+## https://cscu.cornell.edu/wp-content/uploads/conttableresid.pdf
 Pathogenicity_pLDDT_chisq$residuals
 Pathogenicity_pLDDT_chisq$observed
+
+abs(Pathogenicity_pLDDT_chisq$stdres/(sd(Pathogenicity_pLDDT_chisq$residuals))) > qnorm(1-(alpha_val/length(Pathogenicity_pLDDT_chisq$residuals))/2)
+
 #SAVE TIFF
 tiff("Figures/Figure1_graphics/ClinVar_pLDDT_disorder_chisq.tiff", units="cm", width=10, height=20, res=800)
 corrplot(Pathogenicity_pLDDT_chisq$residuals, method = 'color', is.corr  = FALSE, col = rev(COL2('RdBu')), 
@@ -1111,6 +1139,9 @@ dev.off()
 
 Pathogenicity_pLDDT_PU_chisq$residuals
 Pathogenicity_pLDDT_PU_chisq$observed
+
+abs(Pathogenicity_pLDDT_PU_chisq$stdres/(sd(Pathogenicity_pLDDT_PU_chisq$residuals))) > qnorm(1-(alpha_val/length(Pathogenicity_pLDDT_PU_chisq$residuals))/2)
+
 #SAVE TIFF
 tiff("Figures/Figure1_graphics/ClinVar_pLDDT_disorder_PU_chisq.tiff", units="cm", width=10, height=10, res=800)
 corrplot(Pathogenicity_pLDDT_PU_chisq$residuals, method = 'color', is.corr = FALSE, col = rev(COL2('RdBu')), 
@@ -1153,6 +1184,15 @@ dev.off()
 
 Pathogenicity_IUPred_chisq$residuals
 Pathogenicity_IUPred_chisq$observed
+corrplot(Pathogenicity_IUPred_chisq$stdres/(sd(Pathogenicity_IUPred_chisq$residuals)), method = 'color', is.corr  = FALSE, col = rev(COL2('RdBu')),  col.lim= c(-2.5, 2.5), cl.pos = 'b', addCoef.col = 'grey50', number.cex = 1, outline=T, addgrid.col="white")
+
+corrplot(Pathogenicity_IUPred_chisq$stdres/(sd(Pathogenicity_IUPred_chisq$residuals)), method = 'color', is.corr  = FALSE, col = rev(COL2('RdBu')),  cl.pos = 'b', addCoef.col = 'grey50', number.cex = 1, outline=T, addgrid.col="white")
+alpha_val <- 0.05 #significance
+matrix_dim <- 8 # number of cells
+qnorm(1-(alpha_val/matrix_dim)/2)
+
+abs(Pathogenicity_IUPred_chisq$stdres/(sd(Pathogenicity_IUPred_chisq$residuals))) > qnorm(1-(alpha_val/length(Pathogenicity_IUPred_chisq$residuals))/2)
+
 #SAVE TIFF
 tiff("Figures/Figure1_graphics/ClinVar_IUPred_disorder_chisq.tiff", units="cm", width=10, height=20, res=800)
 corrplot(Pathogenicity_IUPred_chisq$residuals, method = 'color', is.corr  = FALSE, col = rev(COL2('RdBu')),  
@@ -1167,6 +1207,11 @@ dev.off()
 
 Pathogenicity_IUPred_PU_chisq$residuals
 Pathogenicity_IUPred_PU_chisq$observed
+
+
+abs(Pathogenicity_IUPred_PU_chisq$stdres/(sd(Pathogenicity_IUPred_PU_chisq$residuals))) > qnorm(1-(alpha_val/length(Pathogenicity_IUPred_PU_chisq$residuals))/2)
+
+
 #SAVE TIFF
 tiff("Figures/Figure1_graphics/ClinVar_IUPred_disorder_PU_chisq.tiff", units="cm", width=10, height=20, res=800)
 corrplot(Pathogenicity_IUPred_PU_chisq$residuals, method = 'color', is.corr = FALSE, col = rev(COL2('RdBu')),  
@@ -1177,6 +1222,8 @@ pdf("Figures/Figure1_graphics/ClinVar_IUPred_disorder_PU_chisq.pdf", width=4, he
 corrplot(Pathogenicity_IUPred_PU_chisq$residuals, method = 'color', is.corr = FALSE, col = rev(COL2('RdBu')),  
          col.lim= c(-70, 70), cl.pos = 'b', addCoef.col = 'grey50', number.cex = 0.01, outline=T, addgrid.col="white")
 dev.off()
+
+
 ```
 
 ```{r Figure1_Supp_Graphic_AM}
@@ -1500,7 +1547,7 @@ dev.off()
 
 HURI_ClinVar_DMI_mut_count_DMI_long %>% filter(pathogenicity=="Uncertain") 
 HURI_ClinVar_DMI_mut_count_DMI_long %>% filter(pathogenicity=="Uncertain" | pathogenicity=="Pathogenic") %>% select(-pathogenicity, -value) %>% unique()
-
+HURI_ClinVar_DMI_mut_count_DMI_long %>% select(value) %>% sum()
 ```
 
 ```{r Figure2_Graphic_A2}
@@ -1607,6 +1654,13 @@ dev.off()
 
 ```{r Figure2_Graphic_C}
 corrplot(Fragment_contingency_chisq$residuals, method = 'color', is.cor = FALSE,col = rev(COL2('RdBu')), col.lim= c(-35,35), cl.pos = 'b', addCoef.col = 'grey50', outline=T, addgrid.col="white")
+
+corrplot(Fragment_contingency_chisq$stdres, method = 'color', is.cor = FALSE,col = rev(COL2('RdBu')), col.lim= c(-36,36), cl.pos = 'b', addCoef.col = 'grey50', outline=T, addgrid.col="white")
+
+corrplot(Fragment_contingency_chisq$stdres/sd(Fragment_contingency_chisq$residuals), method = 'color', is.cor = FALSE,col = rev(COL2('RdBu')), col.lim= c(-3,3), cl.pos = 'b', addCoef.col = 'grey50', outline=T, addgrid.col="white")
+
+abs(Fragment_contingency_chisq$stdres/(sd(Fragment_contingency_chisq$residuals))) > qnorm(1-(0.05/length(Fragment_contingency_chisq$residuals))/2)
+
 
 # SAVE TIFF
 tiff("Figures/Figure3_graphics/DMI_fragment_mutation_enrichment.tiff", units="cm", width=10, height=20, res=800)
@@ -2546,18 +2600,26 @@ p2 <- ggplot(BRET_mutants_update_motif, aes(x=interaction(mutation_location,exp_
   ggtitle("maxBRET") +  xlab("Group") + ylab("Effect size") + ylim(-25,5) +
   theme_classic() + 
   theme(text = element_text(size = 15), legend.position="none", axis.text = element_text(color = "black"), 
-        axis.text.y = element_blank(), axis.title=element_blank(), plot.title=element_text(size=12), 
+        axis.title.x=element_blank(), plot.title=element_text(size=12), 
         axis.text.x = element_text(angle = 30, vjust = 1, hjust=1) ) +
   scale_x_discrete(labels = c("Core","Flank","Core","Flank")) 
 
-grid.arrange(p1, p2,  widths=c(6,5), nrow=1)
+grid.arrange(p1, p2 + theme(axis.title=element_blank(),axis.text.y = element_blank()),  widths=c(6,5), nrow=1)
 
 # SAVE TIFF
 tiff("Figures/Figure4_graphics/BRET_mutants_scores_BRET.tiff", units="cm", width=11, height=7, res=800)
-grid.arrange(p1, p2, widths=c(6,5),  nrow=1)
+grid.arrange(p1, p2 + theme(axis.title=element_blank(),axis.text.y = element_blank()), widths=c(6,5),  nrow=1)
 dev.off()
 
+# SAVE TIFF
+tiff("Figures/Figure4_graphics/BRET_mutants_scores_BRET50.tiff", units="cm", width=7, height=7, res=800)
+p1 
+dev.off()
 
+# SAVE TIFF
+tiff("Figures/Figure4_graphics/BRET_mutants_scores_maxBRET.tiff", units="cm", width=7, height=7, res=800)
+p2 
+dev.off()
 ```
 
 ```{r Figure4_Graph_G}
@@ -2569,7 +2631,7 @@ p1 <- ggplot(BRET_mutants_update , aes(x=structural_region, y=tstat_bret50)) +
   ggtitle("BRET50") +  xlab("Group") + ylab("Effect size") +  ylim(-25,5) +
   theme_classic() + 
   theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black"), 
-         axis.title.x=element_blank(), plot.title=element_text(size=15), 
+        axis.title.x=element_blank(), plot.title=element_text(size=15), 
         axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
   scale_x_discrete(labels = strc_categories) 
 
@@ -2580,7 +2642,7 @@ p2 <- ggplot(BRET_mutants_update , aes(x=structural_region, y=tstat_cBRET)) +
   ggtitle("maxBRET") +  xlab("Group") + ylab("Effect size") +  ylim(-25,5) +
   theme_classic() + 
   theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black"), 
-        axis.text.y = element_blank(), axis.title=element_blank(), plot.title=element_text(size=15), 
+        axis.title.x=element_blank(), plot.title=element_text(size=15), 
         axis.text.x = element_text(angle = 30, vjust = 1, hjust=1) ) +
   scale_x_discrete(labels = strc_categories) 
 grid.arrange(p1, p2, widths=c(7,6), nrow=1)
@@ -2588,8 +2650,21 @@ grid.arrange(p1, p2, widths=c(7,6), nrow=1)
 
 # SAVE TIFF
 tiff("Figures/Figure4_graphics/BRET_mutants_regions_BRET.tiff", units="cm", width=15, height=9, res=800)
-grid.arrange(p1, p2, widths=c(7,6), nrow=1)
+grid.arrange(p1, p2+ theme(axis.title=element_blank(),axis.text.y = element_blank()), widths=c(7,6), nrow=1)
 dev.off()
+
+
+# SAVE TIFF
+tiff("Figures/Figure4_graphics/BRET_mutants_regions_BRET50.tiff", units="cm", width=10, height=9, res=800)
+p1
+dev.off()
+
+# SAVE TIFF
+tiff("Figures/Figure4_graphics/BRET_mutants_regions_maxBRET.tiff", units="cm", width=10, height=9, res=800)
+p2
+dev.off()
+
+
 ```
 
 ```{r Figure4_Graph_H}
@@ -2883,48 +2958,12 @@ dev.off()
 ```
 
 ```{r Figure5_Graph_C}
-graph_x <- "Fragment"
-graph_y <-  "Fragment\naverage pLDDT"
-
-p1 <- ggplot(Model_metrics_fragments %>% filter(Fragment!="C"), aes(x=Fragment, y=avg_pLDDT, color=Fragment)) + 
-  geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
-  ggtitle("Fragment confidence") + xlab(graph_x) + ylab(graph_y) + 
-  scale_color_manual(values=colors_DMI) + 
-  theme_classic() +  
-  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), 
-        legend.position = "none", axis.ticks = element_line(linewidth = 1))
-
-graph_y <-  "Fragment\naverage RSA"
-p2 <-ggplot(Model_metrics_fragments %>% filter(Fragment!="C"), aes(x=Fragment, y=avg_Acc, color=Fragment)) + 
-  geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
-  ggtitle("Fragment accessibility") + xlab(graph_x) + ylab(graph_y) + ylim(0.15,0.7) +
-  scale_color_manual(values=colors_DMI) + 
-  theme_classic() +  
-  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), 
-        legend.position = "none", axis.ticks = element_line(linewidth = 1))+
-  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
-
-grid.arrange(p1, p2,nrow=1)
-
-# SAVE PNG
-png("Figures/Figure5_graphics/Fragments_pLDDT_RSA.png", units="cm", width=18, height=9, res=800)
-grid.arrange(p1, p2,nrow=1)
-dev.off()
-
-# SAVE PDF
-# pdf("Figures/Figure5_graphics/AF_high_PPIs.pdf", width=7, height=4)
-# grid.arrange(p1, p2,nrow=1)
-# dev.off()
-
-
-```
-
-```{r Figure5_Graph_D}
 graph_x <- "Motif region"
-graph_y <-  "Motif\nresidue pLDDT"
+graph_y <-  "Residue pLDDT"
 
 p1 <- ggplot(Model_metrics_motif, aes(x=Motif_region, y=pLDDT, color=Motif_region)) + 
   geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
+  geom_hline(yintercept = 80, size=0.5, color="red") +
   ggtitle("Motif confidence") + xlab(graph_x) + ylab(graph_y) + 
   scale_color_manual(values=c("limegreen","forestgreen","limegreen")) + 
   theme_classic() +  
@@ -2933,7 +2972,7 @@ p1 <- ggplot(Model_metrics_motif, aes(x=Motif_region, y=pLDDT, color=Motif_regio
 p1 
 
 # SAVE PNG
-png("Figures/Figure5_graphics/Motif_regions_pLDDT.png", units="cm", width=10, height=8, res=800)
+png("Figures/Figure5_graphics/Motif_regions_pLDDT.png", units="cm", width=7, height=8, res=800)
 p1
 dev.off()
 
@@ -2943,9 +2982,10 @@ dev.off()
 # dev.off()
 
 
-graph_y <-  "Motif residue RSA"
+graph_y <-  "Residue RSA"
 p2 <-ggplot(Model_metrics_motif, aes(x=Motif_region, y=SC_norm_Acc, color=Motif_region)) + 
   geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
+  geom_hline(yintercept = 0.36, size=0.5, color="red") +
   ggtitle("Motif accessibility") + xlab(graph_x) + ylab(graph_y) + 
   scale_color_manual(values=c("limegreen","forestgreen","limegreen")) + 
   theme_classic() +  
@@ -2954,7 +2994,7 @@ p2 <-ggplot(Model_metrics_motif, aes(x=Motif_region, y=SC_norm_Acc, color=Motif_
 p2 
 
 # SAVE PNG
-png("Figures/Figure5_graphics/Motif_regions_RSA.png", units="cm", width=10, height=8, res=800)
+png("Figures/Figure5_graphics/Motif_regions_RSA.png", units="cm", width=7, height=8, res=800)
 p2
 dev.off()
 
@@ -2963,9 +3003,10 @@ dev.off()
 # p2
 # dev.off()
 
-graph_y <-  "Motif\nresidue \u0394 RSA"
+graph_y <-  "Residue \u0394 RSA"
 p3 <-ggplot(Model_metrics_motif, aes(x=Motif_region, y=Acc_change, color=Motif_region)) + 
   geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.2) +
+  geom_hline(yintercept = -0.05, size=0.5, color="red") +
   ggtitle("Motif \u0394 RSA") + xlab(graph_x) + ylab(graph_y) + 
   scale_color_manual(values=c("limegreen","forestgreen","limegreen")) + 
   theme_classic() +  
@@ -2975,13 +3016,13 @@ p3 <-ggplot(Model_metrics_motif, aes(x=Motif_region, y=Acc_change, color=Motif_r
 p3
 
 # SAVE PNG
-png("Figures/SuppFig_AFmodels_graphics/Motif_regions_deltaRSA.png", units="cm", width=10, height=8, res=800)
+png("Figures/Figure5_graphics/Motif_regions_deltaRSA.png", units="cm", width=7, height=8, res=800)
 p3
 dev.off()
 
 grid.arrange(p1, p2, p3, nrow=1)
 
-graph_x <-  "Motif residue \u0394 RSA"
+graph_x <-  "Residue \u0394 RSA"
 p3c <- ggplot(Model_metrics_motif %>% filter(Motif_region=="Core"), aes(x=Acc_change)) + geom_density() +
   ggtitle("Motif Core \u0394 RSA") + xlab(graph_x) + ylab("Density") + 
   #scale_color_manual(values=c("limegreen","forestgreen","limegreen")) + 
@@ -2993,7 +3034,7 @@ p3c
 
 ```
 
-```{r Figure5_Graph_D2}
+```{r Figure5_Graph_C2}
 graph_x <- "Motif region"
 graph_y <-  "Motif residue pLDDT"
 
@@ -3021,7 +3062,7 @@ p2
 p3
 ```
 
-```{r Figure5_Graph_E}
+```{r Figure5_Graph_D}
 # Variants mapped
 p1 <- ggplot(DMI_AF_mut_hq %>% filter(structural_region!="other"), aes(y=structural_region, fill=Pathogenicity)) + 
   geom_bar(position="fill", width = 0.6, color="black", size=0.4) +
@@ -3050,7 +3091,7 @@ dev.off()
 DMI_AF_mut_hq %>% count(structural_region, Pathogenicity)
 ```
 
-```{r Figure5_Graph_F}
+```{r Figure5_Graph_E}
 DMI_AF_mut_hq_chisq$residuals
 DMI_AF_mut_hq_chisq$observed
 
@@ -3080,6 +3121,93 @@ DMI_AF_mut_interfacial_chisq$observed
 corrplot(DMI_AF_mut_interfacial_chisq$residuals, method = 'color', is.corr  = FALSE, col = rev(COL2('RdBu')), col.lim = c(-9,9),
          cl.pos = 'b', addCoef.col = 'grey50', number.cex = 0.01, outline=T, addgrid.col="white")
 
+```
+
+```{r Figure5_Graph_Supp_fragments}
+
+p1 <- ggplot(Model_metrics_fragments %>% filter(Fragment!="C"), aes(x=Fragment, y=avg_pLDDT, color=Fragment)) + 
+  geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
+  geom_hline(yintercept = 80, size=0.5, color="red") +
+  ggtitle("Fragment confidence") + xlab("Fragment") + ylab("Fragment\naverage pLDDT") + 
+  scale_color_manual(values=colors_DMI) + 
+  theme_classic() +  
+  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), 
+        legend.position = "none", axis.ticks = element_line(linewidth = 1))
+
+p2 <-ggplot(Model_metrics_fragments %>% filter(Fragment!="C"), aes(x=Fragment, y=avg_Acc, color=Fragment)) + 
+  geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
+  geom_hline(yintercept = 0.36, size=0.5, color="red") +
+  ggtitle("Fragment accessibility") + xlab("Fragment") + ylab("Fragment\naverage RSA") + ylim(0.15,0.7) +
+  scale_color_manual(values=colors_DMI) + 
+  theme_classic() +  
+  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), 
+        legend.position = "none", axis.ticks = element_line(linewidth = 1))+
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
+
+grid.arrange(p1, p2,nrow=1)
+
+# SAVE PNG
+png("Figures/Figure5_graphics/Fragments_pLDDT_RSA.png", units="cm", width=18, height=9, res=800)
+grid.arrange(p1, p2,nrow=1)
+dev.off()
+
+# SAVE PDF
+# pdf("Figures/Figure5_graphics/AF_high_PPIs.pdf", width=7, height=4)
+# grid.arrange(p1, p2,nrow=1)
+# dev.off()
+
+p3 <- ggplot(Model_metrics %>% filter(Fragment!="C") %>% group_by(DMI, Fragment) %>% summarise(avg_dRSA = mean(Acc_change, na.rm=TRUE)) %>%
+               ungroup() %>% select(DMI, Fragment, avg_dRSA) %>% unique(), 
+            aes(x=Fragment, y=avg_dRSA, color=Fragment)) + 
+  geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
+  geom_hline(yintercept = -0.05, size=0.5, color="red") +
+  ggtitle("Fragment accessibility") + xlab("Fragment") + ylab("Fragment\naverage \u0394 RSA") + ylim(0.15,0.7) +
+  scale_color_manual(values=colors_DMI) + 
+  theme_classic() +  
+  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), 
+        legend.position = "none", axis.ticks = element_line(linewidth = 1))+
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
+
+# SAVE PNG
+png("Figures/Figure5_graphics/Fragments_pLDDT_RSA_dRSA.png", units="cm", width=22, height=9, res=800)
+grid.arrange(p1, p2, p3, nrow=1)
+dev.off()
+
+p1 <- ggplot(Model_metrics %>% filter(Fragment!="C"), aes(x=Fragment, y=pLDDT, color=Fragment)) + 
+  geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
+  geom_hline(yintercept = 80, size=0.5, color="red") +
+  ggtitle("Fragment confidence") + xlab("Fragment") + ylab("Fragment\nresidue pLDDT") + 
+  scale_color_manual(values=colors_DMI) + 
+  theme_classic() +  
+  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), 
+        legend.position = "none", axis.ticks = element_line(linewidth = 1))
+
+p2 <-ggplot(Model_metrics %>% filter(Fragment!="C"), aes(x=Fragment, y=Norm_Acc, color=Fragment)) + 
+  geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
+  geom_hline(yintercept = 0.36, size=0.5, color="red") +
+  ggtitle("Fragment accessibility") + xlab("Fragment") + ylab("Fragment\nresidue RSA") + ylim(0.15,0.7) +
+  scale_color_manual(values=colors_DMI) + 
+  theme_classic() +  
+  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), 
+        legend.position = "none", axis.ticks = element_line(linewidth = 1))+
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
+
+p3 <- ggplot(Model_metrics %>% filter(Fragment!="C"), aes(x=Fragment, y=Acc_change, color=Fragment)) + 
+  geom_quasirandom(size=0.5, alpha=0.5) + geom_boxplot(color="black", na.rm = TRUE, width=0.25, alpha=0.5, outlier.alpha = 0.5) +
+  geom_hline(yintercept = -0.05, size=0.5, color="red") +
+  ggtitle("Fragment accessibility") + xlab("Fragment") + ylab("Fragment\nresidue \u0394 RSA")  + ylim(0.15,0.7) +
+  scale_color_manual(values=colors_DMI) + 
+  theme_classic() +  
+  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), 
+        legend.position = "none", axis.ticks = element_line(linewidth = 1))+
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
+
+#grid.arrange(p1, p2, p3, nrow=1)
+
+# SAVE PNG
+png("Figures/Figure5_graphics/Fragments_residue_pLDDT_RSA_dRSA.png", units="cm", width=22, height=9, res=800)
+grid.arrange(p1, p2, p3, nrow=1)
+dev.off()
 ```
 
 ```{r Figure5_Graph_Supp_flanks}
