@@ -1,0 +1,386 @@
+---
+title: "Combine_model_metrics"
+author: "JesusAV"
+date: "2024-11-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, message = F, warning = F)
+```
+
+```{r Packages, echo=F}
+library(tidyverse)
+library(gridExtra)
+library(knitr) 
+library(dplyr)
+library(ggstats)
+library(ggplot2)
+library(ggvenn) 
+```
+
+
+```{r Palettes}
+colors_Var <-c("#56B4E9","#E69F00","#d52221","#999999")
+colors_BIN <- c("darkgrey","#006AB4")
+colors_DMI <- c("darkgrey","#18974C")
+colors_blues <- c("#CADCE8","#66A9D6","#4E93C1","#006AB4","#00548C")
+colors_ELMtypes <- c("#734595","#A1BE1F","#F49E17","#3B6FB6","#D41645","#F4C61F")
+
+amino_acid_map <- c(
+  Ala = "A", Arg = "R", Asn = "N", Asp = "D", 
+  Cys = "C", Gln = "Q", Glu = "E", Gly = "G",
+  His = "H", Ile = "I",  Leu = "L", Lys = "K", 
+  Met = "M", Phe = "F", Pro = "P",  Ser = "S", 
+  Thr = "T", Trp = "W", Tyr = "Y", Val = "V"
+  )
+
+AA_map <- c(
+  ALA = "A", ARG = "R", ASN = "N", ASP = "D", 
+  CYS = "C", GLN = "Q", GLU = "E", GLY = "G", 
+  HIS = "H", ILE = "I",  LEU = "L", LYS = "K", 
+  MET = "M", PHE = "F", PRO = "P",  SER = "S", 
+  THR = "T", TRP = "W", TYR = "Y", VAL = "V"
+  )
+
+Accessibility_map <- c(
+  A=129, R=274, N=195, D=193, C=167,
+  E=223, Q=225, G=104, H=224, I=197,
+  L=201, K=236, M=224, F=240, P=159,
+  S=155, T=172, W=285, Y=263, V=174
+)
+
+#https://www.imgt.org/IMGTeducation/Aide-memoire/_UK/aminoacids/IMGTclasses.html
+Volumes_map <- tibble(aa_code=c("G","A","S","C","D","P","N","T","E","V","Q","H","M","I","L","K","R","F","Y","W"),
+                      aa_vol=c(60.1,	88.6,	89.0,	108.5,	111.1,	112.7,	114.1,	116.1,	138.4,	140.0,	143.8,	153.2,	162.9,	166.7,	166.7,	168.6,	173.4,	189.9,	193.6,	227.8),
+                      aa_vol_class=c(rep("very_small",3),rep("small",5),rep("medium",4),rep("large",5),rep("very_large",3)))
+
+Hydropathy_map <- tibble(aa_code=c("I","V","L","F","C","M","A","W","G","T","S","Y","P","H","N","D","Q","E","K","R"),
+                      aa_hp=c(4.5,	4.2,	3.8,	2.8,	2.5,	1.9,	1.8,	-0.9,	-0.4,	-0.7,	-0.8,	-1.3,	-1.6,	-3.2,	-3.5,	-3.5,	-3.5,	-3.5,	-3.9,	-4.5),
+                      aa_hp_class=c(rep("hydrophobic",8),rep("neutral",6),rep("hydrophilic",6)))
+
+
+```
+
+
+
+```{r tables_1}
+# List of model files
+model_files <- read_table(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/HuRI_DMI_AF_modelling/Software/CIF_files_analysis/all_cif_files_18112024.txt", col_names = F)
+colnames(model_files) <- "CIF_file"
+model_files <- model_files %>% separate(CIF_file, c("DMI", "Model"), sep = "_relaxed_model_",remove = F) 
+model_files$Model <- gsub(".cif","", model_files$Model)
+
+
+DMIs_AF_extensions <- read_tsv(file = "/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/HuRI_DMI_AF_modelling/Domain_mappings/DMI_ALL_fragment_extensions.txt")
+colnames(DMIs_AF_extensions)[1] <- "DMI"
+
+
+pLDDT_values <- read_table(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/HuRI_DMI_AF_modelling/Software/CIF_files_analysis/all_models_pLDDT_values.txt", col_names = F)
+colnames(pLDDT_values) <- c("File_name", "AA_code", "Chain", "aa_number","pLDDT")
+pLDDT_values <- pLDDT_values %>% separate(File_name, c("DMI", "Model"), sep = "_relaxed_model_",remove = F) 
+pLDDT_values$Model <- gsub(".cif_pLDDT.txt","", pLDDT_values$Model)
+pLDDT_values <- pLDDT_values %>% mutate(aa_code=AA_map[AA_code])
+
+#Bound complex chain values
+dssp_values  <- read_table(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/HuRI_DMI_AF_modelling/Software/CIF_files_analysis/all_model_dssp_values.txt", col_names = F)
+colnames(dssp_values) <- c("File_name", "aa_number","Chain", "aa_code",  "Total_Acc")
+dssp_values <- dssp_values %>% separate(File_name, c("DMI", "Model"), sep = "_relaxed_model_",remove = F) 
+dssp_values$Model <- gsub("_dssp.txt","", dssp_values$Model)
+dssp_values <- dssp_values %>% mutate(Norm_Acc=(Total_Acc/Accessibility_map[aa_code]))
+
+dssp_values %>% select(File_name) %>% unique() #7,451
+dssp_values %>% select(DMI) %>% unique() #7,437
+
+#Unbound -Single chain values
+dssp_sc_values  <- read_table(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/HuRI_DMI_AF_modelling/DSSP_AccChng/all_model_singleChain_dssp_values.txt", col_names = F)
+colnames(dssp_sc_values) <- c("File_name", "aa_number","Chain", "aa_code",  "SC_total_Acc")
+dssp_sc_values <- dssp_sc_values %>% separate(File_name, c("DMI", "Model"), sep = "_relaxed_model_",remove = F) 
+dssp_sc_values$Model <- gsub(".pdb_Chain[AB].pdb","", gsub("_dssp.txt","", dssp_sc_values$Model))
+dssp_sc_values <- dssp_sc_values %>% mutate(SC_norm_Acc=(SC_total_Acc/Accessibility_map[aa_code]))
+
+dssp_sc_values %>% select(File_name) %>% unique() #7,451
+dssp_sc_values %>% select(DMI) %>% unique() #7,437
+
+# Distance contact definition - 3 Angstroms
+contacts_3A <- read_table(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/HuRI_DMI_AF_modelling/Software/CIF_files_analysis/all_model_3A_contacts.txt", col_names = F)
+colnames(contacts_3A) <- c("File_name", "chain.aa_number","AA_code", "index")
+contacts_3A <- contacts_3A %>% separate(File_name, c("DMI", "Model"), sep = "_relaxed_model_",remove = F) 
+contacts_3A <- contacts_3A %>% separate(Model, c("Model", "Distance"), sep = ".cif_contacts_",remove = T) 
+contacts_3A$Distance <-  gsub("A.txt","",contacts_3A$Distance)
+contacts_3A <- contacts_3A %>% separate(chain.aa_number, c("Chain", "aa_number"), sep = ":",remove = T, convert = T) 
+contacts_3A$Chain <-  gsub("/","",contacts_3A$Chain)
+contacts_3A <- contacts_3A %>% mutate(aa_code=AA_map[AA_code])
+
+# Distance contact definition - 5 Angstroms
+contacts_5A <- read_table(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/HuRI_DMI_AF_modelling/Software/CIF_files_analysis/all_model_5A_contacts.txt", col_names = F)
+colnames(contacts_5A) <- c("File_name", "chain.aa_number","AA_code", "index")
+contacts_5A <- contacts_5A %>% separate(File_name, c("DMI", "Model"), sep = "_relaxed_model_",remove = F) 
+contacts_5A <- contacts_5A %>% separate(Model, c("Model", "Distance"), sep = ".cif_contacts_",remove = T) 
+contacts_5A$Distance <-  gsub("A.txt","",contacts_5A$Distance)
+contacts_5A <- contacts_5A %>% separate(chain.aa_number, c("Chain", "aa_number"), sep = ":",remove = T, convert = T) 
+contacts_5A$Chain <-  gsub("/","",contacts_5A$Chain)
+contacts_5A <- contacts_5A %>% mutate(aa_code=AA_map[AA_code])
+
+contacts_3A %>% select(File_name) %>% unique() #7,437
+contacts_5A %>% select(File_name) %>% unique() #7,437
+
+# Model confidence scores 
+Scores_json_raw <- read_tsv(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/HuRI_DMI_AF_modelling/Score_files/DMI_model_confidence_all_2.tab", col_names = T, na = "")
+
+#Scores_json$DMI <- gsub("/ranking_debug.json:","",gsub("AF_predictions/","",Scores_json$File))
+Scores_json <- Scores_json_raw %>% filter(rank==1) %>% select(DMI,model, score)
+Scores_json$Model <- gsub("_multimer_v3_pred_0","",gsub("model_","",Scores_json$model))
+
+Scores_json <- Scores_json %>% select(-model)
+```
+
+
+
+```{r table_motif_boundaries_1}
+model_files_info <- model_files %>% select(-CIF_file) %>% separate(DMI, c("Domain","Motif"), sep="\\.", remove = F)  %>% 
+  separate(Domain, c("DomainProtein","DomainID1","O", "domain_pLDDT_start","domain_pLDDT_end"), sep="_", remove =T, convert = T)  %>% select(-O) %>%
+  separate(Motif, c("SLiMProtein","Accession","D", "ELM_start","ELM_end"), sep="_", remove =T, convert = T) %>% select(-D)
+
+model_files_info 
+
+motif_extension <- DMIs_AF_extensions %>% select(SLiMProtein, Accession, SLiMMatch, ELM_start,ELM_end,motif_start,motif_end ) %>% unique() 
+
+model_files_info <- left_join(model_files_info, motif_extension, by=c("SLiMProtein", "Accession", "ELM_start","ELM_end")) %>% filter(!is.na(motif_start))
+model_files_info[duplicated(model_files_info$DMI),]
+
+
+#model_files_info
+```
+
+
+```{r Combine}
+mistmaching_model_ranks <- c("Q08999_PF01857_O_830_1030.Q99708_ELME000007_D_152_169", "Q08209_SM00156_O_10_373.Q96KS9_ELME000237_D_3_9")
+pLDDT_values <- pLDDT_values %>% mutate(Model = case_when(DMI == mistmaching_model_ranks[1]  ~ "2", 
+                                          DMI == mistmaching_model_ranks[2]  ~ "5", 
+                                                              TRUE ~ Model ))
+
+Model_metrics <- left_join(pLDDT_values %>% select(-File_name), 
+                           dssp_values %>% select(-File_name), by=c("DMI","Model", "Chain", "aa_number","aa_code") )
+
+left_join( pLDDT_values %>% select(-File_name) %>% filter(DMI=="Q08209_SM00156_O_10_373.Q96KS9_ELME000237_D_3_9"), 
+           dssp_values %>% select(-File_name) %>% filter(DMI=="Q08209_SM00156_O_10_373.Q96KS9_ELME000237_D_3_9"), by=c("DMI","Model", "Chain", "aa_number","aa_code") )
+
+
+Model_metrics <- Model_metrics %>% select(DMI,Model,Chain, aa_number,aa_code,pLDDT,Total_Acc,Norm_Acc)
+Model_metrics <- left_join(Model_metrics, Scores_json, by=c("DMI","Model"))
+colnames(Model_metrics)[9] <- "model_score"
+
+contacts_3A$Contact_3A <-  1
+contacts_5A$Contact_5A <-  1
+
+Model_metrics <- left_join(Model_metrics, contacts_3A %>% select(DMI,Model,Chain,aa_number,aa_code,Contact_3A), by=c("DMI","Model", "Chain", "aa_number","aa_code"))
+Model_metrics <- left_join(Model_metrics, contacts_5A %>% select(DMI,Model,Chain,aa_number,aa_code,Contact_5A), by=c("DMI","Model", "Chain", "aa_number","aa_code"))
+
+Model_metrics <-  Model_metrics %>% mutate(Contact_3A = if_else(is.na(Contact_3A), 0, Contact_3A)) %>% mutate(Contact_5A = if_else(is.na(Contact_5A), 0, Contact_5A))
+
+Model_metrics$Contact_3A <- as.factor(Model_metrics$Contact_3A)
+Model_metrics$Contact_5A <- as.factor(Model_metrics$Contact_5A)
+
+#Model_metrics <- Model_metrics %>% mutate(Norm_Acc = case_when(Norm_Acc > 1 ~ 1,  TRUE ~ Norm_Acc ))
+Model_metrics <- Model_metrics %>% mutate(Fragment = case_when(Chain == "A" ~ "Domain", Chain == "B" ~ "Motif", TRUE ~ Chain ))
+
+Model_metrics$domain_start <- as.integer(gsub("_.*?$", "",gsub("\\..*?$", "",gsub("^.*?_O_", "",Model_metrics$DMI))))
+Model_metrics <- left_join(Model_metrics, model_files_info %>% select(DMI,motif_start), by="DMI")
+
+
+
+C_chain_models <- pLDDT_values %>% filter(Chain=="C") %>% select(DMI) %>% unique() %>% unlist()
+Model_metrics <- Model_metrics %>% mutate(Chain = case_when(Chain == "B" & DMI %in% C_chain_models ~ "A2", 
+                                                              Chain == "C" & DMI %in% C_chain_models  ~ "B", 
+                                                              TRUE ~ Chain ))
+
+Model_metrics <-  Model_metrics %>% mutate(residue_n = case_when(Chain == "A" ~ aa_number + domain_start - 1,  TRUE ~ aa_number ))
+Model_metrics <-  Model_metrics %>% mutate(residue_n = case_when(Chain == "B" ~ residue_n + motif_start ,  TRUE ~ residue_n )) #motif start is a Python index so we don't rest 1
+
+Model_metrics %>% filter(Chain=="B") %>% select(DMI,aa_number, aa_code,Contact_3A,Contact_5A,motif_start,residue_n)
+
+
+Model_metrics <- left_join( Model_metrics , dssp_sc_values %>% select(-File_name), by=c("DMI","Model", "Chain", "aa_number","aa_code") )
+#write_tsv(Model_metrics, file="../All_model_metrics.tsv") 
+```
+
+```{r Combine_mutations}
+DMI_Clinvar_mutations <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/DMI_human_HuRI_overlap_clinvar_2023_release.csv")
+#DMI_Clinvar_mutations <- read_csv(file="DMI_human_HuRI_overlap_clinvar_2023_release.csv")
+
+DMI_Clinvar_mutations <- DMI_Clinvar_mutations %>% select(fragment_type, fragment_protein, fragment_id,aa_change, pathogenicity )
+
+DMI_Clinvar_mutations$residue_n <- gsub("[A-z]","",DMI_Clinvar_mutations$aa_change)
+
+DMI_Clinvar_mut_grouped <- DMI_Clinvar_mutations %>% group_by(fragment_type, fragment_protein, fragment_id,residue_n) %>% count(pathogenicity) %>% ungroup() %>% pivot_wider(names_from = pathogenicity, values_from = n)
+DMI_Clinvar_mut_grouped <- DMI_Clinvar_mut_grouped %>% mutate(uncertain = case_when(is.na(uncertain)  ~ 0, TRUE ~ uncertain ) ) %>% 
+  mutate(benign = case_when(is.na(benign)  ~ 0, TRUE ~ benign ) ) %>% 
+  mutate(conflicting = case_when(is.na(conflicting)  ~ 0, TRUE ~ conflicting ) ) %>% 
+  mutate(pathogenic = case_when(is.na(pathogenic)  ~ 0, TRUE ~ pathogenic ) )
+
+colnames(DMI_Clinvar_mut_grouped)[1:3] <- c("Fragment","Chain_protein","Fragment_id")
+
+DMI_Clinvar_mut_grouped <- DMI_Clinvar_mut_grouped %>% mutate(Fragment = case_when(Fragment=="domain"  ~ "Domain", Fragment=="slim" ~ "Motif", TRUE ~ Fragment ))
+DMI_Clinvar_mut_grouped$residue_n <- as.numeric(DMI_Clinvar_mut_grouped$residue_n )
+```
+
+```{r Combine_mutations_AM}
+DMI_Clinvar_AM_mutations <- read_tsv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/DMI_human_HuRI_overlap_clinvar_2023_release_extAM.tsv", col_names = T)
+
+DMI_Clinvar_AM_mutations$residue_n <- gsub("[A-z]","",DMI_Clinvar_AM_mutations$AA_change)
+DMI_Clinvar_AM_mutations$residue_n <- as.numeric(DMI_Clinvar_AM_mutations$residue_n )
+
+DMI_Clinvar_AM_mutations_grouped <- DMI_Clinvar_AM_mutations %>% group_by(fragment_type, fragment_protein, fragment_id,residue_n) %>% count(AF_category) %>% ungroup() %>% pivot_wider(names_from = AF_category, values_from = n)
+DMI_Clinvar_AM_mutations_grouped <- DMI_Clinvar_AM_mutations_grouped %>% 
+  mutate(ambiguous = case_when(is.na(ambiguous)  ~ 0, TRUE ~ ambiguous ) ) %>% 
+  mutate(benign = case_when(is.na(benign)  ~ 0, TRUE ~ benign ) ) %>% 
+  mutate(pathogenic = case_when(is.na(pathogenic)  ~ 0, TRUE ~ pathogenic ) )
+colnames(DMI_Clinvar_AM_mutations_grouped)[c(1:3,5:7)] <- c("Fragment", "Chain_protein","Fragment_id", "AM_ambiguous", "AM_benign", "AM_pathogenic")
+
+DMI_Clinvar_AM_mutations_grouped <- DMI_Clinvar_AM_mutations_grouped %>% mutate(Fragment = case_when(Fragment=="domain"  ~ "Domain", Fragment=="slim" ~ "Motif", TRUE ~ Fragment ))
+DMI_Clinvar_AM_mutations_grouped$residue_n <- as.numeric(DMI_Clinvar_AM_mutations_grouped$residue_n)
+```
+
+```{r Combine_mutations}
+#Model_metrics_shrt <- Model_metrics %>% select(DMI, pLDDT,Norm_Acc,model_score,Contact_5A,Fragment,residue_n)
+Model_metrics_shrt <- Model_metrics %>% select(DMI, pLDDT,Norm_Acc,model_score,Contact_5A,Fragment,residue_n) %>% filter(model_score>=0.6)
+Model_metrics_shrt
+
+Model_metrics_shrt <- Model_metrics_shrt %>% mutate(fragment_info = case_when(Fragment=="Domain"  ~ gsub("\\..*?$","",DMI), Fragment=="Motif" ~ gsub("^.*?\\.","",DMI), TRUE ~ Fragment ))
+
+Model_metrics_shrt <-  Model_metrics_shrt %>% separate(fragment_info, c("Chain_protein","Fragment_id","DO","Fragment_s","Fragment_e"), sep="_", convert=T, remove=T) %>% select(-DO, -model_score)
+
+Model_metrics_shrt <- left_join(Model_metrics_shrt, DMI_Clinvar_mut_grouped, by=c("Fragment","Chain_protein","Fragment_id","residue_n"))
+Model_metrics_shrt <- left_join(Model_metrics_shrt, DMI_Clinvar_AM_mutations_grouped,  by=c("Fragment","Chain_protein","Fragment_id","residue_n"))
+
+
+Model_metrics_shrt_mut <- Model_metrics_shrt %>% filter(uncertain>1 | benign>1 | conflicting>1 |pathogenic>1 | AM_ambiguous>1 | AM_benign>1 |AM_pathogenic>1 )
+
+
+Model_metrics_mut_lng <- Model_metrics_shrt_mut %>% pivot_longer(cols = uncertain:pathogenic, names_to = "Pathogenicity",values_to = "M_number") %>% pivot_longer(cols = AM_ambiguous:AM_pathogenic, names_to = "AM_pathogenicity",values_to = "AM_M_number") %>% filter(M_number>0 & AM_M_number>0)
+
+Model_metrics_mut_lng$AM_pathogenicity <- ordered(Model_metrics_mut_lng$AM_pathogenicity, levels = c("AM_benign", "AM_ambiguous","AM_pathogenic"))  
+```
+
+
+```{r Combine_mutations_mappings}
+Model_metrics_mut_lng %>% count(Mapped_pathogenicity,Fragment)
+
+Model_metrics_mut_lng %>% filter(Fragment=="Motif" & Contact_5A=="0" & Mapped_pathogenicity=="P_U")
+Model_metrics %>% filter(DMI=="O00505_SM00185_O_69_491.Q6UB99_ELME000271_D_2384_2390"  & Chain=="B" & residue_n==2389)
+DMI_Clinvar_AM_mutations %>% filter(fragment_type=="slim" & fragment_protein=="Q6UB99"& residue_n==2389)
+
+Model_metrics_mut_lng %>% filter(Fragment=="Motif" & Contact_5A=="1" & Mapped_pathogenicity=="B_U" & Norm_Acc<0.36)
+Model_metrics_mut_lng %>% filter(DMI=="O15131_SM00185_O_76_508.Q9HAN9_ELME000271_D_123_130" & Contact_5A=="1" & Mapped_pathogenicity=="B_U" & Norm_Acc<0.36)
+Model_metrics %>% filter(DMI=="O15131_SM00185_O_76_508.Q9HAN9_ELME000271_D_123_130"  & Chain=="B")
+DMI_Clinvar_AM_mutations %>% filter(fragment_type=="slim" & fragment_protein=="Q9HAN9"& residue_n==128)
+
+```
+
+
+```{r Write_tables}
+#write_tsv(Model_metrics, file="../All_model_metrics.tsv") 
+
+Model_metrics <- read_table(file="../All_model_metrics.tsv")
+summary(Model_metrics$Norm_Acc)
+
+Model_metrics_fragments <- Model_metrics %>% select(DMI, Model, model_score, Fragment, pLDDT, Norm_Acc) %>% group_by(DMI, Model, model_score, Fragment) %>% summarize(avg_pLDDT = mean(pLDDT, na.rm = TRUE), avg_Acc = mean(Norm_Acc, na.rm = TRUE))
+
+#write_tsv(Model_metrics_fragments, file="../All_model_metrics_byFragments.tsv") 
+
+Model_metrics_interfaces <- Model_metrics %>% select(DMI, Model, model_score, Fragment, Contact_5A, pLDDT, Norm_Acc) %>% group_by(DMI, Model, model_score, Fragment,Contact_5A ) %>% summarize(avg_pLDDT = mean(pLDDT, na.rm = TRUE), avg_Acc = mean(Norm_Acc, na.rm = TRUE)) 
+
+#write_tsv(Model_metrics_interfaces, file="../All_model_metrics_byInterface.tsv") 
+
+```
+
+
+```{r change_acc}
+Model_metrics$Acc_change <- Model_metrics$Norm_Acc - Model_metrics$SC_norm_Acc
+
+ggplot(Model_metrics, aes(x=as.factor(Contact_5A), y=Acc_change, fill=Fragment)) + geom_boxplot(na.rm = TRUE)+
+  ggtitle("DMI Interaface - Accessibility") + xlab("Interface") + ylab("Accessibility change") + 
+  scale_fill_manual(values=colors_DMI) + 
+  theme_classic() +  theme(text = element_text(size = 15), 
+                            legend.position = c(0.15, 0.25), legend.title = element_text(size=10), 
+                            legend.text = element_text(size=8), legend.key.size = unit(0.3, 'cm'))
+Model_metrics %>% filter(Fragment!="Domain")
+```
+
+
+```{r accessibility_categories}
+Model_metrics <- Model_metrics %>% mutate(structural_region = case_when(Fragment=="Domain" & Acc_change<(-0.05)  ~ "d_interface",
+                                                       Fragment=="Domain" & Acc_change>=-0.05 & Norm_Acc>0.36 ~ "d_surface",
+                                                       Fragment=="Domain" & Acc_change>=-0.05 & Norm_Acc<=0.36 ~ "d_buried",
+                                                       Fragment=="Motif"  & Acc_change<(-0.05)  ~ "m_interface",
+                                                       Fragment=="Motif"  & Acc_change>=-0.05 ~ "m_non_interface",
+                                                       TRUE ~ "other" ) )
+Model_metrics %>% count(structural_region)
+Model_metrics %>% filter(structural_region=="other") %>% select(DMI, Model, model_score) %>% unique()
+ELM_classes %>% filter(Accession=="ELME000372")
+```
+
+```{r mutation_volumes}
+DMI_Clinvar_mut_info <- DMI_Clinvar_mutations
+
+DMI_Clinvar_mut_info$aminoacid_change <- gsub("[0-9]{1,5}","_",DMI_Clinvar_mut_info$aa_change)
+DMI_Clinvar_mut_info <- DMI_Clinvar_mut_info %>% separate(aminoacid_change, c("aminoacid","aa_variant"), sep="_")
+DMI_Clinvar_mut_info <- DMI_Clinvar_mut_info %>% mutate(aminoacid=amino_acid_map[aminoacid]) %>% mutate(aa_variant=amino_acid_map[aa_variant])
+Volumes_map
+
+colnames(DMI_Clinvar_mut_info)[7] <- "aa_code"
+DMI_Clinvar_mut_info <- left_join(DMI_Clinvar_mut_info,Volumes_map, by="aa_code")
+colnames(DMI_Clinvar_mut_info)[7:9] <- c("aminoacid","aa_code","aminoacid_vol")
+DMI_Clinvar_mut_info <- left_join(DMI_Clinvar_mut_info,Volumes_map %>% select(-aa_vol_class), by="aa_code")
+colnames(DMI_Clinvar_mut_info)[c(8,11)] <- c("aa_variant","aa_variant_vol")
+
+DMI_Clinvar_mut_info$vol_diff <- abs(DMI_Clinvar_mut_info$aminoacid_vol - DMI_Clinvar_mut_info$aa_variant_vol)
+DMI_Clinvar_mut_info$vol_change <- (DMI_Clinvar_mut_info$aminoacid_vol - DMI_Clinvar_mut_info$aa_variant_vol)^2
+
+DMI_Clinvar_mut_info %>% filter(fragment_type=="domain" &  fragment_protein=="P0DP23" ) %>% select(fragment_protein,fragment_id,pathogenicity,aa_change,residue_n,vol_diff) %>% arrange(residue_n)
+DMI_Clinvar_mut_info %>% filter(fragment_type=="slim" &   fragment_protein=="Q96KS9" ) %>% select(fragment_protein,fragment_id,pathogenicity,aa_change,residue_n, vol_diff) %>% arrange(residue_n)
+```
+```{r mutation_volumes_AM}
+##AlphaMissense
+DMI_Clinvar_AM_mut_info <- DMI_Clinvar_AM_mutations
+DMI_Clinvar_AM_mut_info$aminoacid_change <- gsub("[0-9]{1,5}","_",DMI_Clinvar_AM_mut_info$AA_change)
+DMI_Clinvar_AM_mut_info <- DMI_Clinvar_AM_mut_info %>% separate(aminoacid_change, c("aminoacid","aa_variant"), sep="_")
+Volumes_map
+
+colnames(DMI_Clinvar_AM_mut_info)[10] <- "aa_code"
+DMI_Clinvar_AM_mut_info <- left_join(DMI_Clinvar_AM_mut_info,Volumes_map, by="aa_code")
+colnames(DMI_Clinvar_AM_mut_info)[10:12] <- c("aminoacid","aa_code","aminoacid_vol")
+DMI_Clinvar_AM_mut_info <- left_join(DMI_Clinvar_AM_mut_info,Volumes_map %>% select(-aa_vol_class), by="aa_code")
+colnames(DMI_Clinvar_AM_mut_info)[c(11,14)] <- c("aa_variant","aa_variant_vol")
+
+DMI_Clinvar_AM_mut_info$vol_diff <- abs(DMI_Clinvar_AM_mut_info$aminoacid_vol - DMI_Clinvar_AM_mut_info$aa_variant_vol)
+DMI_Clinvar_AM_mut_info$vol_change <- (DMI_Clinvar_AM_mut_info$aminoacid_vol - DMI_Clinvar_AM_mut_info$aa_variant_vol)^2
+```
+
+
+```{r mutation_hydropathy}
+Hydropathy_map
+
+colnames(DMI_Clinvar_mut_info)[7] <- "aa_code"
+DMI_Clinvar_mut_info <- left_join(DMI_Clinvar_mut_info,Hydropathy_map, by="aa_code")
+colnames(DMI_Clinvar_mut_info)[c(7,8,14)] <- c("aminoacid","aa_code","aminoacid_hp")
+DMI_Clinvar_mut_info <- left_join(DMI_Clinvar_mut_info,Hydropathy_map %>% select(-aa_hp_class), by="aa_code")
+colnames(DMI_Clinvar_mut_info)[c(8,16)] <- c("aa_variant","aa_variant_hp")
+
+DMI_Clinvar_mut_info$hp_diff <- abs(DMI_Clinvar_mut_info$aminoacid_hp - DMI_Clinvar_mut_info$aa_variant_hp)
+
+DMI_Clinvar_mut_info %>% filter(fragment_type=="domain" &  fragment_protein=="Q96D71" ) %>% select(fragment_protein,fragment_id,pathogenicity,aa_change,residue_n,hp_diff) %>% arrange(residue_n)
+DMI_Clinvar_mut_info %>% filter(fragment_type=="slim" &   fragment_protein=="Q96KS9" ) %>% select(fragment_protein,fragment_id,pathogenicity,aa_change,residue_n, hp_diff) %>% arrange(residue_n)
+```
+
+```{r mutation_hydropathy_AM}
+##AlphaMissense
+colnames(DMI_Clinvar_AM_mut_info)[10] <- "aa_code"
+DMI_Clinvar_AM_mut_info <- left_join(DMI_Clinvar_AM_mut_info,Hydropathy_map, by="aa_code")
+colnames(DMI_Clinvar_AM_mut_info)[c(10,11,17)] <- c("aminoacid","aa_code","aminoacid_hp")
+DMI_Clinvar_AM_mut_info <- left_join(DMI_Clinvar_AM_mut_info,Hydropathy_map %>% select(-aa_hp_class), by="aa_code")
+colnames(DMI_Clinvar_AM_mut_info)[c(11,19)] <- c("aa_variant","aa_variant_hp")
+
+DMI_Clinvar_AM_mut_info$hp_diff <- abs(DMI_Clinvar_AM_mut_info$aminoacid_hp - DMI_Clinvar_AM_mut_info$aa_variant_hp)
+```

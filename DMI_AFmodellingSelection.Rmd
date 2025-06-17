@@ -1,0 +1,240 @@
+---
+title: "DMI Filters consolidations"
+author: "JesusAV"
+date: "2024-06-12"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, message = F, warning = F)
+```
+
+```{r Packages, echo=F}
+library(tidyverse)
+library(gridExtra)
+library(knitr) 
+library(dplyr)
+library(ggstats)
+library(ggvenn)
+library(ggVennDiagram)
+```
+
+```{r DMI_predictions}
+## All DMI predictions
+All_DMI <- read_csv(file="../Datasets/All_DMIs-All_mutations/HuRI_BioPlex_lit17_union.csv")
+colnames(All_DMI)[3] <- "ELM_class" # Change the column name from just "Elm" to "ELM_class"
+All_DMI$ELM_type <- as.factor(substr(All_DMI$ELM_class, 1,3)) #Set class column as factor 
+
+## ELM information
+ELM_human_tax <- read_csv(file="../Datasets/elm_classes_taxons_Jun2024.csv")
+ELM_human_tax <- ELM_human_tax %>% select(ELMIdentifier, ELM_Hs, Modification) # Retain only ELM class names and the presence in human
+colnames(ELM_human_tax)[1] <- "ELM_class"
+
+## Add taxonomy information to DMI predictions
+All_DMI <- left_join(All_DMI, ELM_human_tax, by="ELM_class") 
+All_DMI$ELM_Hs <- as.factor(All_DMI$ELM_Hs)
+
+## Retain only the ones valid for humans and drop the column of taxonomy
+Human_DMI <- All_DMI %>% filter(ELM_Hs=="1") %>% select(-ELM_Hs)
+## From 620,584 to 566,557  (93% from HuRi)
+
+## Retain only DMIs from HuRI and drop columns that indicate the source
+HuRI_human_DMI <- Human_DMI %>% filter(Source_HuRI=="1") %>% select(-Source_lit17, -Source_HuRI, -Source_BioPlex)
+## From 566,557 to 137,780 (23%)
+
+HuRI_human_DMI <- HuRI_human_DMI %>% filter(DMIMatchScore>=0.7)
+## Save table for further use
+#write_csv(HuRI_human_DMI, file="../Datasets/HuRI_DMIs-ClinVar_mutations/HuRI_human_highScores.csv")
+```
+
+```{r Mutations}
+## All mutations 
+All_mutations <- read_csv(file="../Datasets/All_DMIs-All_mutations/DDD_and_clinvar_mutations_2023_release.csv")
+
+## Retain only mutations from ClinVar and drop columns that indicate the source
+Clinvar_mutations <- All_mutations %>% filter(clinvar=="1") %>% select(-clinvar, -ddd)
+## From 1,000,122 to 996,702 (99%)
+
+## Save table for further use
+#write_csv(Clinvar_mutations, file="../Datasets/HuRI_DMIs-ClinVar_mutations/Clinvar_mutations_2023_release.csv")
+```
+
+
+```{r DMI_mutation_overlap}
+## All mutation overlap with DMIs fragments (Domain/Slims)
+All_mutations_DMI <- read_csv(file="../Datasets/All_DMIs-All_mutations/DMI_overlap_ddd_and_clinvar_2023_release.csv")
+
+## Create a column of keys for fragments (Domain/Slims)
+All_mutations_DMI$fragment_key <- with(All_mutations_DMI, paste(fragment_protein,fragment_id,fragment_pos, sep=">"))
+
+## Create list of keys for motifs and domains from HuRI_human
+DMI_motifs_key <- HuRI_human_DMI %>% select(SLiMProtein, Accession, SLiMMatch) %>% unique() %>% with(paste(SLiMProtein, Accession, SLiMMatch, sep=">"))
+
+DMI_domain_key <- HuRI_human_DMI %>% select(DomainProtein, DomainID1, DomainMatch1) %>% unique() %>% with(paste(DomainProtein, DomainID1, DomainMatch1, sep=">"))
+
+fragment_keys <- c(DMI_motifs_key, DMI_domain_key)
+
+## Retain only DMI mutations that are from HuRI and human classes
+ClinVar_mut_DMI <- All_mutations_DMI %>% filter(composite_id %in% Clinvar_mutations$composite_id) 
+## From 49,926 to 49,617 (99%)
+
+## Retain only DMI mutations that are from HuRI and human classes
+HuRI_human_ClinVar_mut_DMI <- ClinVar_mut_DMI %>% filter(fragment_key %in% fragment_keys) 
+## From 49,617 to 17,148 (34%)
+
+## Save table for further use
+#write_csv(HuRI_human_ClinVar_mut_DMI, file="../Datasets/HuRI_DMIs-ClinVar_mutations/DMI_human_HuRI_overlap_clinvar_2023_release.csv")
+```
+
+
+```{r DMI_mutation_pathogenic_VUS}
+#HuRI_human_ClinVar_mut_DMI <- read.csv(file="../Datasets/HuRI_DMIs-ClinVar_mutations/DMI_human_HuRI_overlap_clinvar_2023_release.csv")
+#HuRI_human_DMI <- read.csv(file="../Datasets/HuRI_DMIs-ClinVar_mutations/HuRI_human_highScores.csv")
+## Retain only HuRI and human classes DMI mutations that are pathogenic or uncertain  
+HuRI_human_ClinVar_mut_DMI_PU <- HuRI_human_ClinVar_mut_DMI %>% filter(pathogenicity=="pathogenic" | pathogenicity=="uncertain")
+## From 17,148 to 15,894 (92%)
+
+## Create columns of keys for motifs and domains from HuRI_human
+HuRI_human_DMI$Motif_key <- with(HuRI_human_DMI, paste(SLiMProtein, Accession, SLiMMatch, sep=">"))
+HuRI_human_DMI$Domain_key <- with(HuRI_human_DMI, paste(DomainProtein, DomainID1, DomainMatch1, sep=">"))
+
+## Retain only HuRI and human classes DMIs with at least one pathogenic or uncertain mutation in either their motif or domain
+HuRI_human_DMI_Clinvar_PU <- HuRI_human_DMI %>% filter(Motif_key %in% HuRI_human_ClinVar_mut_DMI_PU$fragment_key | Domain_key %in% HuRI_human_ClinVar_mut_DMI_PU$fragment_key)
+## From 137,780 to 112,482 (82%)
+#nrow(HuRI_human_DMI_Clinvar_PU)/nrow(HuRI_human_DMI)
+
+
+HuRI_human_DMI_Clinvar_PU %>% filter(DMIMatchScore>=0.7)
+## From 112,482 to 10,847 (7.8%)
+#nrow(HuRI_human_DMI_Clinvar_PU %>% filter(DMIMatchScore>=0.7))/nrow(HuRI_human_DMI)
+
+## Final selection for DMI structural modelling 
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD <- HuRI_human_DMI_Clinvar_PU %>% filter(DMIMatchScore>=0.7 & ELM_type!="MOD" & Modification=="0")
+#nrow(HuRI_human_DMI_Clinvar_PU_highScr_noMOD)/nrow(HuRI_human_DMI_Clinvar_PU)
+```
+
+
+```{r DMI_overlapping_classes}
+## Select relevant columns
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD <- HuRI_human_DMI_Clinvar_PU_highScr_noMOD %>% select(intx_ID, SLiMProtein, ELM_class, SLiMMatch, DomainProtein, DomainID1, DomainMatch1,DomainID2 )
+
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD <- HuRI_human_DMI_Clinvar_PU_highScr_noMOD %>% separate(SLiMMatch, c("SLiMMatch_s", "SLiMMatch_e"),convert = TRUE)
+
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD$Prots_Frags_key <- paste(paste(HuRI_human_DMI_Clinvar_PU_highScr_noMOD$SLiMProtein, 
+                                                                       HuRI_human_DMI_Clinvar_PU_highScr_noMOD$DomainProtein,
+                                                                       sep="_"),
+                                                                 paste(HuRI_human_DMI_Clinvar_PU_highScr_noMOD$ELM_class, 
+                                                                       HuRI_human_DMI_Clinvar_PU_highScr_noMOD$DomainID1,
+                                                                       sep="_"),
+                                                                 sep=">")
+
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD %>% count(Prots_Frags_key) %>% select(n) %>% table()
+# There are 2,096 DMIs that do not share protein-motif and protein-domain 
+# and 1,119 DMIs with repeated protein-motif and protein-domain relations, which can potentially overlap with each others
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD %>% count(Prots_Frags_key) %>% arrange(-n)
+#"O43516_O43639>LIG_SH3_3_SM00326" has 16 motifs and 10 groups of overlapping motifs
+
+# This function uses a tibble column containing motif start/end values to create a distance matrix
+# The distance matrix then will be used to perform hierarchical clustering
+# An interval value is used as a high to cut the resulting dendrogram into groups 
+# The start/end values of this group would not be more than this value units apart
+group_motifs <- function(tibble_column, interval){
+  groups <- tibble_column %>% dist() %>% hclust() %>% cutree(h=interval)
+  return(groups)
+}
+
+DMI_noRepeats_keys <- HuRI_human_DMI_Clinvar_PU_highScr_noMOD %>% count(Prots_Frags_key) %>% filter(n==1) %>% select(Prots_Frags_key) %>% unlist()
+
+DMI_Repeats_keys <- HuRI_human_DMI_Clinvar_PU_highScr_noMOD %>% count(Prots_Frags_key) %>% filter(n>1) %>% select(Prots_Frags_key) %>% unlist()
+
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp <- HuRI_human_DMI_Clinvar_PU_highScr_noMOD %>% filter(Prots_Frags_key %in% DMI_noRepeats_keys)
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp$SM_s_group <- 1
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp$SM_e_group <- 1
+
+# If motif with +5 flanks on each end, 6 value would suffice
+motif_overlap_threshold <- 6
+for(i in 1:length(DMI_Repeats_keys)){
+  repeat_group <- HuRI_human_DMI_Clinvar_PU_highScr_noMOD %>% filter(Prots_Frags_key==DMI_Repeats_keys[i]) %>% arrange(SLiMMatch_s) %>% transform(SM_s_group = group_motifs(SLiMMatch_s,4)) %>% transform(SM_e_group = group_motifs(SLiMMatch_e,motif_overlap_threshold))
+  HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp <- rbind(HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp,repeat_group)
+}
+
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp$SM_diff <- HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp$SM_s_group - HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp$SM_e_group
+
+table(HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp$SM_diff )
+
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp %>% filter(SM_diff!=0) %>% select(Prots_Frags_key) %>% unique() %>% unlist()
+#"O95872_P63010>TRG_NLS_MonoExtN_4_SM00185" "O95872_Q10567>TRG_NLS_MonoExtN_4_SM00185" 
+#"O95872_Q1MX18>TRG_NLS_MonoExtN_4_SM00185" "P46087_O60684>TRG_NLS_MonoExtN_4_SM00185" 
+#"Q9NW75_P68400>DOC_MAPK_gen_1_SM00220" 
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp %>% filter(Prots_Frags_key=="O95872_Q10567>TRG_NLS_MonoExtN_4_SM00185")
+
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp %>% select(Prots_Frags_key, SM_e_group) %>% unique()
+```
+```{r ProteinIDs_DMIs}
+DMI_proteins_IDs <- as.tibble(c(HuRI_human_DMI_Clinvar_PU_highScr_noMOD %>% select(SLiMProtein) %>% unique() %>% unlist(), HuRI_human_DMI_Clinvar_PU_highScr_noMOD %>% select(DomainProtein) %>% unique() %>% unlist()))
+
+write_tsv(DMI_proteins_IDs, file="HuRI_human_DMI_Clinvar_PU_highScr_noMOD_proteins_IDs.tsv", col_names = F)
+
+DMI_proteinsPairs_info <- HuRI_human_DMI_Clinvar_PU_highScr_noMOD %>% select(DomainProtein, DomainID1, DomainMatch1, SLiMProtein, ELM_class, SLiMMatch_s, SLiMMatch_e)
+
+write_tsv(DMI_proteinsPairs_info, file="HuRI_human_DMI_Clinvar_PU_highScr_noMOD_proteins_proteinPairs.tsv", col_names = F)
+```
+
+```{r IDs}
+HURIdomain_2 <- HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp %>% filter(DomainID2!="NULL") %>% select(DomainProtein) %>% unique()
+colnames(HURIdomain_2) <- "IDs"
+HURIdomain_1 <- HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp %>% select(DomainProtein) %>% unique() 
+colnames(HURIdomain_1) <- "IDs"
+domains <- rbind(HURIdomain_1, HURIdomain_2) %>% unique()
+motifs <- HuRI_human_DMI_Clinvar_PU_highScr_noMOD_Movrlp %>% select(SLiMProtein) %>% unique() 
+colnames(motifs) <- "IDs"
+domains_motifs <- rbind(motifs, domains) %>% unique() # 1,297
+
+c(domains %>% unlist(), motifs%>% unlist()) %>% unique() %>% length()
+
+nodes <- read_tsv(file="~/Desktop/node_proteins.txt", col_names = "IDs") # 469
+NDD <- read_tsv(file="~/Desktop/NDD_proteins.txt", col_names = "IDs") # 982
+NDD_nodes <- read_tsv(file="~/Desktop/NDD_and_node_proteins.txt", col_names = "IDs") # 1,381
+
+IDs_list <- list(domain=domains%>% unlist(), 
+                 motif=motifs%>% unlist(), 
+                 node=nodes%>% unlist(), 
+                 NDD=NDD%>% unlist()) 
+
+ggvenn(IDs_list, stroke_size = 0.5, set_name_size = 8, text_size = 6)
+
+Domain_motifs_nodes_NDD <- c(domains_motifs %>% unlist(), NDD_nodes %>% unlist()) %>% unique() %>% as.tibble()
+Domain_motifs_nodes <- c(domains_motifs %>% unlist(), nodes %>% unlist()) %>% unique() %>% as.tibble()
+Domain_nodes_NDD <- c(domains %>% unlist(), NDD_nodes %>% unlist()) %>% unique()%>% as.tibble()
+Domain_nodes <- c(domains %>% unlist(), nodes %>% unlist()) %>% unique() %>% as.tibble()
+
+
+write_tsv(domains_motifs, file = "~/Desktop/Domains_motifs.txt", col_names = F)
+write_tsv(Domain_motifs_nodes_NDD, file = "~/Desktop/Domain_motifs_nodes_NDD.txt", col_names = F)
+write_tsv(Domain_motifs_nodes, file = "~/Desktop/Domain_motifs_nodes.txt", col_names = F)
+write_tsv(Domain_nodes_NDD, file = "~/Desktop/Domain_nodes_NDD.txt", col_names = F)
+write_tsv(Domain_nodes, file = "~/Desktop/Domain_nodes.txt", col_names = F)
+
+```
+
+```{r IDs_2}
+MotifProt_ID <- All_DMI %>% filter(ELM_Hs=="1") %>% select(SLiMProtein) %>% unique() 
+DomainProt_ID <- All_DMI %>% filter(ELM_Hs=="1") %>% select(DomainProtein) %>% unique()
+colnames(MotifProt_ID) <- "protein"
+colnames(DomainProt_ID) <- "protein"
+
+DMIprot_ID <- rbind(MotifProt_ID, DomainProt_ID)
+DMIprot_ID <- DMIprot_ID %>% unique()
+#write_tsv(DMIprot_ID, file = "../Datasets/DMI_protein_IDs.txt", col_names = F)
+
+Uniprot_human_ID <- read_tsv(file = "../Datasets/uniprotkb_human_9606_2024_06_13.tsv")
+Uniprot_human_ID <- Uniprot_human_ID %>% select(Entry)
+#write_tsv(Uniprot_human_ID, file = "../Datasets/uniprotkb_human_9606_2024_06_13_IDs.txt", col_names = F)
+DMIprot_ID %>% filter(!(DMIprot_ID$protein %in% Uniprot_human_ID$Entry))
+
+Uniprot_human_ID %>% filter(Entry=="Q8N1N5") 
+```

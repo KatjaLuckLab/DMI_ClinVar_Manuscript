@@ -1,0 +1,124 @@
+---
+title: "AlphaMissense_mapping"
+author: "JesusAV"
+date: "2024-11-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, message = F, warning = F)
+```
+
+```{r Packages, echo=F}
+library(tidyverse)
+library(knitr) 
+library(dplyr)
+library(gtable)
+library(data.table)
+```
+
+```{r Palettes}
+colors_Var <-c("#56B4E9","#E69F00","#d52221","#999999")
+colors_BIN <- c("darkgrey","#006AB4")
+colors_DMI <- c("darkgrey","#18974C")
+colors_blues <- c("#CADCE8","#66A9D6","#4E93C1","#006AB4","#00548C")
+colors_ELMtypes <- c("#734595","#A1BE1F","#F49E17","#3B6FB6","#D41645","#F4C61F")
+```
+
+
+
+```{r Tables}
+# ClinVar mutation overlap with DMI fragments
+DMI_Huri_ClinVar_overlap <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/DMI_human_HuRI_overlap_clinvar_2023_release.csv")
+DMI_Huri_ClinVar_overlap
+
+# Selection of unique proteins in DMI dataset for first AlphaMissense filtering
+DMI_protein <- DMI_Huri_ClinVar_overlap %>% select(fragment_protein) %>% unique() %>% unlist()
+```
+
+
+```{r AM_filter}
+# Define the path to the AM TSV file
+file_path <- "/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/AFDB_HumanReferenceProteome/AlphaMissense/AlphaMissense_aa_substitutions.tsv"
+
+# Set chunk size
+chunk_size <- 10000000
+start_row <- 0
+
+AM_DMI_proteins <- tibble(uniprot_id=character(), protein_variant=character(), am_pathogenicity=double(), am_class=character())
+part_n <- 1
+repeat {
+  # Read a chunk of the data
+  chunk <- fread(
+    input = file_path,
+    sep = "\t",
+    skip = start_row,
+    nrows = chunk_size,
+    header = (start_row == 0)  # Read header only for the first chunk
+  )
+  
+  colnames(chunk)[1] <- "uniprot_id"
+  filt_chunk <- chunk %>% filter(uniprot_id %in% DMI_protein)
+  
+  if(nrow(filt_chunk)>0){
+    chunk_name <- paste("part_", part_n, sep="")
+    chunk_path <- paste("/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/AFDB_HumanReferenceProteome/AlphaMissense/Chunks/DMI_AF_",chunk_name, ".tsv",sep="")
+    #write_tsv(filt_chunk, file=chunk_path, col_names = F)
+    part_n <- part_n + 1
+  }
+  
+  # Stop if no more rows
+  if (nrow(chunk) == 0) break
+
+  # Update starting row for the next chunk
+  start_row <- start_row + chunk_size
+}
+ #154800000
+#write_tsv(AM_DMI_proteins, file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/DMI_human_HuRI_overlap_clinvar_2023_release_AlphaMissense.tsv")
+
+rm(chunk, filt_chunk,chunk_name, chunk_path, chunk_size,file_path,part_n, start_row)
+```
+
+
+
+```{r DMI_mutations}
+#AM_DMI_proteins <- read.table(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/DMI_human_HuRI_overlap_clinvar_2023_release_AlphaMissense.tsv", header = F)
+AM_DMI_proteins <- fread(input="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/DMI_human_HuRI_overlap_clinvar_2023_release_AlphaMissense.tsv",
+    sep = "\t",
+    skip = 0,
+    nrows = 8000000,
+    header = (start_row == 0)  # Read header only for the first chunk
+  )
+
+AM_DMI_proteins <- tibble(AM_DMI_proteins)
+colnames(AM_DMI_proteins)<-  c("uniprot_id","AA_change","AM_score","AF_category")
+
+AM_DMI_proteins %>%  filter(AF_category=="pathogenic") %>% select(AM_score) %>% min() # pathogenic 0.564
+AM_DMI_proteins %>%  filter(AF_category=="benign") %>% select(AM_score) %>% max() # benign 0.34
+
+# Residue codes
+amino_acid_map <- c(
+  Ala = "A", Arg = "R", Asn = "N", Asp = "D", Cys = "C",
+  Gln = "Q", Glu = "E", Gly = "G", His = "H", Ile = "I",
+  Leu = "L", Lys = "K", Met = "M", Phe = "F", Pro = "P",
+  Ser = "S", Thr = "T", Trp = "W", Tyr = "Y", Val = "V"
+)
+
+DMI_Huri_ClinVar_overlap$aa_1 <- gsub("\\d{1,}([A-Z][a-z]{2})$", "", DMI_Huri_ClinVar_overlap$aa_change)
+DMI_Huri_ClinVar_overlap$aa_pos <- gsub("[A-z]","", DMI_Huri_ClinVar_overlap$aa_change)
+DMI_Huri_ClinVar_overlap$aa_2 <- gsub("^([A-Z][a-z]{2})\\d{1,}","", DMI_Huri_ClinVar_overlap$aa_change) 
+
+DMI_Huri_ClinVar_overlap <- DMI_Huri_ClinVar_overlap %>% mutate(aa_1=amino_acid_map[aa_1])
+DMI_Huri_ClinVar_overlap <- DMI_Huri_ClinVar_overlap %>% mutate(aa_2=amino_acid_map[aa_2])
+
+DMI_Huri_ClinVar_overlap$AA_change <- with(DMI_Huri_ClinVar_overlap, paste(aa_1, aa_pos,aa_2, sep="") )
+
+
+AM_overlap <- DMI_Huri_ClinVar_overlap %>% filter(fragment_protein %in% AM_DMI_proteins$uniprot_id)
+colnames(AM_DMI_proteins)[1] <- "fragment_protein"
+AM_overlap <- left_join(AM_overlap, AM_DMI_proteins, by=c("fragment_protein","AA_change"))
+
+AM_overlap <- AM_overlap %>% select(fragment_protein,fragment_type,fragment_id,fragment_pos,AA_change,pathogenicity, AM_score, AF_category)
+#write_tsv(AM_overlap, file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/DMI_human_HuRI_overlap_clinvar_2023_release_extAM.tsv")
+rm(AM_DMI_proteins)
+```
