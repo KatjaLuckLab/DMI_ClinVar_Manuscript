@@ -25,4 +25,4 @@ AF_DMI_combine_model_metrics.Rmd
 Figures.Rmd
 
 ### Preparation of supplementary tables
-Tables.Rmd
+Supp_Tables.Rmd
