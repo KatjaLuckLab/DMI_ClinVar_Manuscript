@@ -1,0 +1,418 @@
+---
+title: "DMI_ClinVar_AF"
+author: "JesusAV"
+date: "2025-01-16"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, message = F, warning = F)
+```
+
+```{r Packages, echo=F}
+library(tidyverse)
+library(gridExtra)
+library(knitr) 
+library(dplyr)
+library(ggstats)
+library(ggplot2)
+library(ggvenn) 
+library(ggbeeswarm)
+library(ggVennDiagram)
+library(corrplot)
+library(colorspace)
+library(igraph)
+library(networkD3)
+library(tools)
+library(ggh4x)
+library(scales)
+```
+
+```{r Data_maps}
+amino_acid_map <- c(
+  Ala = "A", Arg = "R", Asn = "N", Asp = "D", 
+  Cys = "C", Gln = "Q", Glu = "E", Gly = "G",
+  His = "H", Ile = "I",  Leu = "L", Lys = "K", 
+  Met = "M", Phe = "F", Pro = "P",  Ser = "S", 
+  Thr = "T", Trp = "W", Tyr = "Y", Val = "V"
+  )
+ 
+elm_categories <- c("Cleavage", "Degrons","Subst. recog.", "Scaffolding", "PTM sites", "Localization")
+strc_categories <- c("D. interface", "D. buried","D. surface", "M. interface", "M. not int.")
+```
+
+```{r SuppTable_1_Curated_DMI}
+DMI_curation <- read_tsv("../../projects/dmi_predictor/DMI_types_annotation/20220311_elm_interaction_domains_complete.tsv")
+
+colnames(DMI_curation) <- c("ELM_accession", "ELM_class", "domain_ID", "domain_description", "domain_name", "domain_count", "default_use1", "domain2_ID", "domain2_description",  "domain2_name", "domain2_count", "default_use2","binary_complex", "comments", "notes")
+
+ELM_human <- read_csv("../../Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/elm_classes_taxons_Jun2024.csv")
+ELM_human <- ELM_human %>% select(ELMIdentifier, ELM_Hs) %>% rename(ELM_class=ELMIdentifier)
+
+DMI_curation <- left_join(DMI_curation, ELM_human)
+DMI_curation <- DMI_curation %>% rename(ELM_human=ELM_Hs)
+
+DMI_curation <- DMI_curation %>% 
+  mutate(Comments_notes = case_when(is.na(comments) & is.na(notes) ~ "",
+                                    !is.na(comments) & is.na(notes) ~ comments,
+                                    is.na(comments) & !is.na(notes) ~ notes,
+                                    !is.na(comments) & !is.na(notes) ~ paste(comments, notes, sep=";")) )%>% 
+  select(-comments, -notes) %>% rename(comments=Comments_notes)
+
+## Save table
+#write_csv(DMI_curation, file="Supp_tables/CSV/Supp_table.Curated_ELM_DMIs.csv")
+
+DMI_curation %>%  select(ELM_class) %>% unique() #291 classes overall
+DMI_curation %>% filter(ELM_human==1) %>% select(ELM_class) %>% unique() #268 classes that include humans
+
+
+HuRi_DMI <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/All_DMIs-All_mutations/HuRI_BioPlex_lit17_union.csv")
+HuRi_DMI %>% select(Accession) %>% unique() #257 elm
+HuRi_DMI %>% filter(Source_HuRI==1) %>% select(Accession) %>% unique() #211
+
+HuRi_DMI <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/HuRI_human.csv")
+HuRi_DMI %>% select(Accession) %>% unique() #199 elm
+
+```
+
+```{r SuppTable_8_PRS_RRS}
+#Table containing the curated DMIs which comprise the Positive Reference Set for the Random forest classifier
+DMI_PRS <- read_tsv("../../projects/dmi_predictor/ML_items/PRS/PRS_v3_only_human_with_pattern_alt_iso_swapped_removed_20210413_slim_domain_features_annotated_slim_domain_count_features_annotated.tsv")
+DMI_PRS <- DMI_PRS %>% select(-`...1`) #Clean extra column
+DMI_PRS <-  DMI_PRS %>% mutate(ElmMatch=gsub("-","_",ElmMatch))  %>% 
+  mutate(DomainMatch1=gsub("-","_",DomainMatch1)) %>% mutate(DomainMatch2=gsub("-","_",DomainMatch2)) # Reformar match for .xlsx use
+#write_csv(DMI_PRS, file="Supp_tables/CSV/Supp_table.DMI_PRS.csv") #write table
+
+DMI_PRS <- DMI_PRS %>% select(-DMISource) 
+DMI_PRS <- DMI_PRS %>% mutate(ReferenceSet="PRS", Replicate="1")
+
+#Table containing the 4 different Random reference set (in triplicates) for the Random forest classifier
+## Read tables
+DMI_RRS_1_1 <- read_tsv("../../projects/dmi_predictor/ML_items/RRS/RRSv1/RRSv1_1_20210427_slim_domain_features_annotated_slim_domain_count_features_annotated.tsv")
+DMI_RRS_1_2 <- read_tsv("../../projects/dmi_predictor/ML_items/RRS/RRSv1/RRSv1_2_20210427_slim_domain_features_annotated_slim_domain_count_features_annotated.tsv")
+DMI_RRS_1_3 <- read_tsv("../../projects/dmi_predictor/ML_items/RRS/RRSv1/RRSv1_3_20210427_slim_domain_features_annotated_slim_domain_count_features_annotated.tsv")
+DMI_RRS_2_1 <- read_tsv("../../projects/dmi_predictor/ML_items/RRS/RRSv2/RRSv2_1_20210428_slim_domain_features_annotated_slim_domain_count_features_annotated.tsv")
+DMI_RRS_2_2 <- read_tsv("../../projects/dmi_predictor/ML_items/RRS/RRSv2/RRSv2_2_20210428_slim_domain_features_annotated_slim_domain_count_features_annotated.tsv")
+DMI_RRS_2_3 <- read_tsv("../../projects/dmi_predictor/ML_items/RRS/RRSv2/RRSv2_3_20210428_slim_domain_features_annotated_slim_domain_count_features_annotated.tsv")
+DMI_RRS_3_1 <- read_tsv("../../projects/dmi_predictor/ML_items/RRS/RRSv3/RRSv3_1_20210428_slim_domain_features_annotated_slim_domain_count_features_annotated.tsv")
+DMI_RRS_3_2 <- read_tsv("../../projects/dmi_predictor/ML_items/RRS/RRSv3/RRSv3_2_20210428_slim_domain_features_annotated_slim_domain_count_features_annotated.tsv")
+DMI_RRS_3_3 <- read_tsv("../../projects/dmi_predictor/ML_items/RRS/RRSv3/RRSv3_3_20210428_slim_domain_features_annotated_slim_domain_count_features_annotated.tsv")
+
+## Clean extra columns and add version and triplicate information
+DMI_RRS_1_1 <- DMI_RRS_1_1 %>% select(-`...1`) %>% mutate(RRS_v="1", RRS_replicate="1")
+DMI_RRS_1_2 <- DMI_RRS_1_2 %>% select(-`...1`) %>% mutate(RRS_v="1", RRS_replicate="2")
+DMI_RRS_1_3 <- DMI_RRS_1_3 %>% select(-`...1`) %>% mutate(RRS_v="1", RRS_replicate="3")
+DMI_RRS_2_1 <- DMI_RRS_2_1 %>% select(-`...1`) %>% mutate(RRS_v="2", RRS_replicate="1")
+DMI_RRS_2_2 <- DMI_RRS_2_2 %>% select(-`...1`) %>% mutate(RRS_v="2", RRS_replicate="2")
+DMI_RRS_2_3 <- DMI_RRS_2_3 %>% select(-`...1`) %>% mutate(RRS_v="2", RRS_replicate="3")
+DMI_RRS_3_1 <- DMI_RRS_3_1 %>% select(-`...1`) %>% mutate(RRS_v="3", RRS_replicate="1")
+DMI_RRS_3_2 <- DMI_RRS_3_2 %>% select(-`...1`) %>% mutate(RRS_v="3", RRS_replicate="2")
+DMI_RRS_3_3 <- DMI_RRS_3_3 %>% select(-`...1`) %>% mutate(RRS_v="3", RRS_replicate="3")
+
+## Join all RRS triplicate tables
+DMI_RRS <- rbind(DMI_RRS_1_1, DMI_RRS_1_2,DMI_RRS_1_3,
+                 DMI_RRS_2_1, DMI_RRS_2_2,DMI_RRS_2_3,
+                 DMI_RRS_3_1, DMI_RRS_3_2,DMI_RRS_3_3)
+
+## Reformat match columns for .xlsx use
+DMI_RRS <-  DMI_RRS %>% mutate(ElmMatch=gsub("-","_",ElmMatch))  %>% 
+  mutate(DomainMatch1=gsub("-","_",DomainMatch1)) %>% mutate(DomainMatch2=gsub("-","_",DomainMatch2))
+
+## Save table
+#write_csv(DMI_RRS, file="Supp_tables/CSV/Supp_table.DMI_RRS_sets.csv")
+rm(DMI_RRS_1_1, DMI_RRS_1_2,DMI_RRS_1_3,DMI_RRS_2_1, DMI_RRS_2_2,DMI_RRS_2_3,DMI_RRS_3_1, DMI_RRS_3_2,DMI_RRS_3_3) # Delete 
+
+DMI_RRS <- DMI_RRS %>% select(-DMISource)
+DMI_RRS <- DMI_RRS %>% mutate(RRS_v=paste("RRS",RRS_v, sep="")) %>% rename(ReferenceSet=RRS_v, Replicate=RRS_replicate)
+
+DMI_RSs <- rbind(DMI_PRS, DMI_RRS)
+## Save joined table
+#write_csv(DMI_RSs, file="Supp_tables/CSV/Supp_table.DMI_ReferenceSets.csv")
+
+```
+
+```{r SuppTable_2_AF_models_expValidation}
+AF_models_exp <- read_csv(file="/Users/jesusav/Desktop/Supp_tables/Other/Supp_table.AF_models_expValidation.csv")
+AF_models_exp <- AF_models_exp[,1:4]
+AF_models_exp <- AF_models_exp %>% 
+  separate(Model_file, c("PPI","ProteinA","ProteinB","model"), sep="\\.", remove = F) %>% select(-model) %>%
+  mutate(ProteinA_ID=gsub("_.*?$","",ProteinA), ProteinB_ID=gsub("_.*?$","",ProteinB)) %>%
+  mutate(ProteinA_code=gsub("([OD])_.*?$","\\1",gsub("^.*?_([OD])","\\1",ProteinA)),
+         ProteinB_code=gsub("([OD])_.*?$","\\1",gsub("^.*?_([OD])","\\1",ProteinB))) %>%
+  mutate(ProteinA_range=gsub("^.*?_[OD]_","",ProteinA), ProteinB_range=gsub("^.*?_[OD]_","",ProteinB)) %>%
+  mutate(ProteinA_fragment=case_when(ProteinA_code=="O" ~ "domain", ProteinA_code=="D" ~ "motif"), 
+         ProteinB_fragment=case_when(ProteinB_code=="O" ~ "domain", ProteinB_code=="D" ~ "motif")) %>%
+  select(Group, PPI, ProteinA_ID, ProteinA_fragment, ProteinA_range, ProteinB_ID, ProteinB_fragment, ProteinB_range, Model_score, Model_file) %>% arrange(Group, PPI)
+
+AF_models_exp
+
+#write_csv(AF_models_exp, file="/Users/jesusav/Desktop/Supp_tables/Supp_table.AF_models_BRET.csv")
+
+```
+
+```{r SuppTable_5_BRET_stats}
+BRET_results <- read_tsv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/BRET_experiments/titration_cat_scoring_v6_with_include.tsv")
+BRET_results <- BRET_results %>% mutate(mut_type=case_when(mCit_plasmid=="pcDNA3.1 mCit-His3C-MYD88_134_138del" ~ "Motif validation", TRUE ~ mut_type))
+BRET_results <- BRET_results %>% 
+  mutate(include=case_when(NL_plasmid=="pcDNA3.1 cmyc-NL-IQCB1_N273Y" &  mCit_symbol=="MNS1" & project_id=="Lu153r01" ~ "1",
+                           NL_plasmid=="pcDNA3.1 cmyc-NL-SPOP_S119L" &  mCit_symbol=="MYD88" & project_id=="Lu171r01" ~ "0",
+                           NL_plasmid=="pcDNA3.1 cmyc-NL-SPOP_R70T" &  mCit_symbol=="RXRB" & project_id=="Lu169r01" ~ "0" , TRUE ~ include))
+
+
+#BRET_results <- BRET_results %>% filter(include=="1")
+BRET_results <- BRET_results %>% filter(include=="1") %>% select(-num_bin)
+
+BRET_results <- BRET_results %>% 
+  rename(mutation_type=mut_type) %>% mutate(mutation_type=gsub(" ","_",mutation_type))  %>% 
+  arrange(mutation_type, NL_symbol) %>% select(-include)
+  #select(-include, -exp_category, -sig_BRET50, -sig_maxBRET, -BRET_category, -pair_key)
+
+comma2pnt <- function(comma_num){
+  point_num <- as.numeric(gsub(",",".",comma_num))
+  return(point_num)
+}
+
+BRET_results[,15:30] <- lapply(BRET_results[,15:30], comma2pnt)
+
+#write_csv(BRET_results, file="Supp_tables/CSV/Supp_table.BRET_statisticalAnalysis.csv")
+as.tibble(colnames(BRET_results))
+
+```
+
+```{r SuppTable_3_4_BRET_titration}
+## Titration selection
+BRET_selection <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/BRET_experiments/titrations_filtering.csv")
+BRET_selection <- BRET_selection %>% filter(include==1 & use_fit==1) %>% select(-include, -use_fit, -comment)
+BRET_selection$repl_id <- as.character(BRET_selection$repl_id)
+
+## Plate layouts
+BRET_plasmid_layout <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/BRET_experiments/plate_layout.csv")
+BRET_plasmid_info <- BRET_plasmid_layout %>% 
+  select(project_id, repl_id, NL_plasmid, mCit_plasmid, NL_plasmid_id, mCit_plasmid_id) %>% unique() %>%
+  filter(NL_plasmid!="empty" & mCit_plasmid!="empty")
+BRET_plasmid_info <- BRET_plasmid_info %>% filter(project_id %in% BRET_selection$project_id)
+
+## Titrations values
+BRET_values <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/BRET_experiments/titration_values.csv")
+BRET_values$ratio <- BRET_values$fluo / BRET_values$lumi
+BRET_values$repl_id <- as.character(BRET_values$repl_id)
+
+## Joined information on titration and projects
+BRET_values_info <- left_join(BRET_values, BRET_plasmid_info)
+BRET_values_info <- BRET_values_info %>% 
+  mutate(NL_construct= gsub("pcDNA3.1 cmyc-NL-", "", NL_plasmid), 
+         mCit_construct = gsub("pcDNA3.1 mCit-His3C-", "", mCit_plasmid))
+
+BRET_values_info <- BRET_values_info %>% 
+  separate(NL_construct, c("NL_protein","NL_mutation"), sep="_", remove=F) %>% 
+  mutate(NL_mutation=case_when(is.na(NL_mutation) ~ NA, !is.na(NL_mutation) ~ gsub("^.*?_", "", NL_construct) )) %>% 
+  separate(mCit_construct, c("mCit_protein","mCit_mutation"), sep="_", remove=F) %>% 
+  mutate(mCit_mutation=case_when(is.na(mCit_mutation) ~ NA, !is.na(mCit_mutation) ~ gsub("^.*?_", "", mCit_construct) )) %>% 
+  mutate(test=case_when(is.na(NL_mutation) & is.na(mCit_mutation) ~ "WT", TRUE ~ "mutant"))
+
+## BRET curve fits
+BRET_fits <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/BRET_experiments/titration_fit.csv")
+
+BRET_values <- BRET_values %>% mutate(pair_key=paste(project_id, NL_plasmid_id, mCit_plasmid_id, sep="."))
+BRET_results  <- BRET_results %>% mutate(pair_key=paste(project_id, NL_plasmid_id, mCit_plasmid_id, sep="."))
+BRET_fits <- BRET_fits %>% mutate(pair_key=paste(project_id, NL_plasmid_id, mCit_plasmid_id, sep="."))
+
+
+BRET_values_filt <- BRET_values %>% filter(pair_key %in% BRET_results$pair_key) %>% select(-pair_key)
+BRET_values_filt <- BRET_values_filt %>% 
+  mutate(NL_property=as.numeric(gsub("ng","",NL_property)))%>% 
+  mutate(mCit_property=as.numeric(gsub("ng","",mCit_property)))
+BRET_values_filt <- left_join(BRET_values_filt, BRET_values_info %>% select(NL_plasmid_id,NL_plasmid) %>% unique())
+BRET_values_filt <- left_join(BRET_values_filt, BRET_values_info %>% select(mCit_plasmid_id,mCit_plasmid) %>% unique())
+BRET_values_filt <- BRET_values_filt %>% 
+  select(project_id, NL_plasmid_id, mCit_plasmid_id, NL_plasmid, mCit_plasmid, NL_property, mCit_property, repl_id, fluo, lumi, ratio, cBRET) %>% rename(NL_property_ng=NL_property, mCit_property_ng=mCit_property, fluo_lumi_ratio=ratio)
+
+#write_csv(BRET_values_filt, file="Supp_tables/CSV/Supp_table.BRET_titrationValues.csv")
+
+BRET_results_BRET50 <- BRET_results %>% filter(!is.na(tstat_bret50))
+BRET_fits_filt <- BRET_fits %>% filter(pair_key %in% BRET_results_BRET50$pair_key) %>% select(-pair_key, -use_fit) 
+BRET_fits_filt <- left_join(BRET_fits_filt, BRET_values_info %>% select(NL_plasmid_id,NL_plasmid) %>% unique())
+BRET_fits_filt <- left_join(BRET_fits_filt, BRET_values_info %>% select(mCit_plasmid_id,mCit_plasmid) %>% unique())
+BRET_fits_filt <- BRET_fits_filt %>% 
+  select(project_id, NL_plasmid_id, mCit_plasmid_id, NL_plasmid, mCit_plasmid, repl_id, bret50, bret50_err, bretmax, bretmax_err)
+
+#write_csv(BRET_fits_filt, file="Supp_tables/CSV/Supp_table.BRET_titrationModelFit.csv")
+
+```
+
+```{r SuppTable_9_primers}
+# Primary primer information
+primers <- read_csv(file="Supp_tables/Other/Supp_table.BRET_primers_dataset_raw.csv")
+primers <- primers[1:105,1:6]
+# Editing of comment column
+primers <- primers %>% mutate(comment=gsub(" for .*?$","",comment))
+
+#write_csv(primers, file="Supp_tables/CSV/Supp_table.BRET_primers_dataset.csv")
+
+
+```
+
+```{r SuppTable_10_constructs}
+constructs <- read_csv(file="Supp_tables/Other/Supp_table.BRET_constructs_dataset.csv")
+constructs <- constructs[1:80,]
+ORF_seqs <- read_csv(file="/Users/jesusav/Desktop/Boston_Luck_ORF_sequences.csv")
+plasmids <-  read_csv(file="/Users/jesusav/Desktop/Luck_lab_plasmids.csv")
+plasmids <- plasmids %>% select(plasmid_id, plasmid_name, orf_id, sequence_verified, deviation_from_ref_seq) 
+
+constructs <- constructs %>% mutate(comment=gsub("LuTHy", "BRET", comment))
+constructs <- left_join(constructs, plasmids %>% rename(construct_name=plasmid_name))
+table(constructs$sequence_verified)
+
+ORF_seqs <- ORF_seqs %>% select(orf_id, cds)
+constructs <- left_join(constructs,ORF_seqs %>% mutate(orf_id=as.character(orf_id)))
+
+constructs <- constructs %>% 
+  select(plasmid_id, construct_name, cds, reference_resource, identifier_catalogNo, construct_type, mutation_ORF, mutation_UniProt, comment)
+
+#write_csv(constructs, file="Supp_tables/CSV/Supp_table.BRET_constructs_dataset.csv")
+
+as.tibble(colnames(constructs))
+
+plasmids %>% filter(plasmid_name=="pcDNA3.1 mCit-GW")
+```
+
+```{r SuppTable_6_DMIs_models}
+All_mutations_DMI <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/All_DMIs-All_mutations/DMI_overlap_ddd_and_clinvar_2023_release.csv")
+All_mutations_DMI$fragment_key <- with(All_mutations_DMI, paste(fragment_protein,fragment_id,fragment_pos, sep=">"))
+
+HuRI_human_DMI <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/HuRI_human.csv")
+ELM_human_tax <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/elm_classes_taxons_Jun2024.csv")
+ELM_human_tax <- ELM_human_tax %>% select(ELMIdentifier, ELM_Hs, Modification) # Retain only ELM class names and the presence in human
+colnames(ELM_human_tax)[1] <- "ELM_class"
+HuRI_human_DMI <- left_join(HuRI_human_DMI, ELM_human_tax, by="ELM_class") 
+
+DMI_motifs_key <- HuRI_human_DMI %>% select(SLiMProtein, Accession, SLiMMatch) %>% unique() %>% with(paste(SLiMProtein, Accession, SLiMMatch, sep=">"))
+DMI_domain_key <- HuRI_human_DMI %>% select(DomainProtein, DomainID1, DomainMatch1) %>% unique() %>% with(paste(DomainProtein, DomainID1, DomainMatch1, sep=">"))
+fragment_keys <- c(DMI_motifs_key, DMI_domain_key)
+
+Clinvar_mutations <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/Clinvar_mutations_2023_release.csv")
+ClinVar_mut_DMI <- All_mutations_DMI %>% filter(composite_id %in% Clinvar_mutations$composite_id) 
+HuRI_human_ClinVar_mut_DMI <- ClinVar_mut_DMI %>% filter(fragment_key %in% fragment_keys) 
+HuRI_human_ClinVar_mut_DMI_PU <- HuRI_human_ClinVar_mut_DMI %>% filter(pathogenicity=="pathogenic" | pathogenicity=="uncertain")
+
+
+HuRI_human_DMI$Motif_key <- with(HuRI_human_DMI, paste(SLiMProtein, Accession, SLiMMatch, sep=">"))
+HuRI_human_DMI$Domain_key <- with(HuRI_human_DMI, paste(DomainProtein, DomainID1, DomainMatch1, sep=">"))
+
+HuRI_human_DMI_Clinvar_PU <- HuRI_human_DMI %>% 
+  filter(Motif_key %in% HuRI_human_ClinVar_mut_DMI_PU$fragment_key | Domain_key %in% HuRI_human_ClinVar_mut_DMI_PU$fragment_key)
+HuRI_human_DMI_Clinvar_PU_highScr_noMOD <- HuRI_human_DMI_Clinvar_PU %>% filter(DMIMatchScore>=0.7 & ELM_type!="MOD" & Modification=="0")
+
+
+HuRI_human_DMI_highScore <- HuRI_human_DMI %>% filter(DMIMatchScore>=0.7) %>% 
+  select(intx_ID, Domain_key, Motif_key, DMIMatchScore, ELM_type,Modification)
+
+HuRI_human_ClinVar_mut_DMI_count <- HuRI_human_ClinVar_mut_DMI %>% count(fragment_key, pathogenicity) %>%
+  pivot_wider(names_from=pathogenicity,values_from = n, values_fill = 0) %>% 
+  select(-benign, -conflicting) %>% filter(!(uncertain==0 & pathogenic==0))
+
+HuRI_human_DMI_highScore <- left_join(HuRI_human_DMI_highScore, HuRI_human_ClinVar_mut_DMI_count %>% rename(Domain_key=fragment_key, domain_uncertain=uncertain, domain_pathogenic=pathogenic))
+HuRI_human_DMI_highScore <- left_join(HuRI_human_DMI_highScore, HuRI_human_ClinVar_mut_DMI_count %>% rename(Motif_key=fragment_key, motif_uncertain=uncertain, motif_pathogenic=pathogenic))
+
+HuRI_human_DMI_highScore <- HuRI_human_DMI_highScore %>% mutate_if(is.numeric,coalesce,0)
+HuRI_human_DMI_highScore <- HuRI_human_DMI_highScore %>% 
+  mutate(fragment_mutations=domain_uncertain+domain_pathogenic+motif_uncertain+motif_pathogenic) %>%
+  mutate(AF_selected=case_when(fragment_mutations>0  & ELM_type!="MOD" & Modification=="0" ~ 1, TRUE ~ 0))
+HuRI_human_DMI_highScore <- HuRI_human_DMI_highScore %>% 
+  separate(Domain_key, c("domain_protein", "domain_accession","domain_match"), sep=">")%>% 
+  separate(Motif_key, c("motif_protein", "motif_accession","motif_match"), sep=">")
+
+
+DMI_AF_metrics <- read_csv(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/HuRI_DMI_AF_modelling/Score_files/DMI_AF_model_metrics.csv")
+DMI_AF_metrics <- DMI_AF_metrics %>% mutate(motif_match=paste(motif_start,motif_end, sep="-"))
+HuRI_human_DMI_highScore_AF <- left_join(HuRI_human_DMI_highScore, DMI_AF_metrics, by=c("intx_ID", "DMIMatchScore", "ELM_type", "domain_protein", "domain_accession","motif_protein","motif_accession","motif_match"))
+
+HuRI_human_DMI_highScore_AF %>% filter(!is.na(DMI_model))
+HuRI_human_DMI_highScore_AF <- HuRI_human_DMI_highScore_AF %>% mutate(domain_match=case_when(!is.na(DMI_model) ~ paste(domain_start, domain_end, sep="-"), TRUE ~ domain_match )) %>% arrange(AF_selected)
+
+HuRI_human_DMI_highScore_AF <- HuRI_human_DMI_highScore_AF %>% separate(domain_match, c("1","2","3","4","5","6","7","8","9","10","11","12"),sep="\\|") %>% pivot_longer(cols=`1`:`12`, names_to = "repeat", values_to = "domain_match") %>% filter(!is.na(domain_match))
+
+HuRI_human_DMI_highScore_AF <- HuRI_human_DMI_highScore_AF %>% 
+  mutate(AF_modelled=case_when(!is.na(DMI_model)~ 1, TRUE ~ 0), AF_highscored=case_when(!is.na(DMI_model) & model_score>= 0.6 ~ 1, TRUE ~ 0))
+HuRI_human_DMI_highScore_AF <-HuRI_human_DMI_highScore_AF %>% select(intx_ID, domain_protein, domain_accession, domain_match, motif_protein, motif_accession, motif_match, DMIMatchScore, ELM_type, Modification, domain_uncertain,domain_pathogenic, motif_uncertain, motif_pathogenic, AF_selected, AF_modelled, AF_highscored, DMI_model, model_score )
+
+
+DMI_AF_metrics %>% filter(model_score>= 0.6) %>% select(intx_ID) %>% unique()
+
+
+HuRI_human_DMI_highScor_AF_fragment <- bind_rows(HuRI_human_DMI_highScore_AF %>% 
+                                                   select(domain_protein,domain_accession,domain_match) %>% mutate(fragment="domain") %>%
+                                                   rename(protein=domain_protein, ID=domain_accession, match=domain_match),
+                                                 HuRI_human_DMI_highScore_AF %>% 
+                                                   select(motif_protein,motif_accession,motif_match)%>% mutate(fragment="motif") %>%
+                                                   rename(protein=motif_protein, ID=motif_accession, match=motif_match)) 
+HuRI_human_DMI_highScor_AF_fragment <- HuRI_human_DMI_highScor_AF_fragment %>% unique() %>% separate(match, c("start","end"), sep="-", remove = F)
+HuRI_human_DMI_highScor_AF_fragment <- HuRI_human_DMI_highScor_AF_fragment %>% mutate(uncertain=0, pathogenic=0)
+
+Clinvar_mut <-  Clinvar_mutations %>% filter(uniprot_id %in% HuRI_human_DMI_highScor_AF_fragment$protein & !(pathogenicity=="bening" & pathogenicity=="conflicting")) %>% 
+  select(uniprot_id,aa_pos,aa_change,pathogenicity) %>% unique()
+for(i in 1:nrow(HuRI_human_DMI_highScor_AF_fragment)){
+  HuRI_human_DMI_highScor_AF_fragment[i,7] <- Clinvar_mut %>% 
+    filter(uniprot_id==unlist(HuRI_human_DMI_highScor_AF_fragment[i,1]) & 
+             pathogenicity=="uncertain"& aa_pos>= unlist(HuRI_human_DMI_highScor_AF_fragment[i,4]) & 
+             aa_pos<= unlist(HuRI_human_DMI_highScor_AF_fragment[i,6])) %>% 
+    select(aa_change) %>% unique() %>% nrow()
+  HuRI_human_DMI_highScor_AF_fragment[i,8] <- Clinvar_mut %>% 
+    filter(uniprot_id==unlist(HuRI_human_DMI_highScor_AF_fragment[i,1]) & 
+             pathogenicity=="pathogenic" & aa_pos>= unlist(HuRI_human_DMI_highScor_AF_fragment[i,4]) & 
+             aa_pos<= unlist(HuRI_human_DMI_highScor_AF_fragment[i,6])) %>% 
+    select(aa_change) %>% unique() %>% nrow()
+}
+HuRI_human_DMI_highScor_AF_fragment <- HuRI_human_DMI_highScor_AF_fragment %>% select(protein, ID, match, uncertain, pathogenic)
+
+
+HuRI_human_DMI_highScore_AF <- HuRI_human_DMI_highScore_AF %>% select(-domain_uncertain, -domain_pathogenic,-motif_uncertain, -motif_pathogenic)
+HuRI_human_DMI_highScore_AF <- left_join(HuRI_human_DMI_highScore_AF, 
+                                         HuRI_human_DMI_highScor_AF_fragment %>% 
+                                           rename(domain_protein=protein, domain_accession=ID, domain_match=match, 
+                                                  domain_uncertain=uncertain, domain_pathogenic=pathogenic))
+HuRI_human_DMI_highScore_AF <- left_join(HuRI_human_DMI_highScore_AF, 
+                                         HuRI_human_DMI_highScor_AF_fragment %>% 
+                                           rename(motif_protein=protein, motif_accession=ID, motif_match=match, 
+                                                  motif_uncertain=uncertain, motif_pathogenic=pathogenic))
+
+HuRI_human_DMI_highScore_AF <-  HuRI_human_DMI_highScore_AF %>% arrange(-AF_selected, -AF_modelled, -AF_highscored)
+#HuRI_human_DMI_highScore_AF <- HuRI_human_DMI_highScore_AF %>% 
+#  separate(domain_match, c("domain_start", "domain_end"), sep="-") %>% separate(motif_match, c("motif_start", "motif_end"), sep="-")
+HuRI_human_DMI_highScore_AF <- HuRI_human_DMI_highScore_AF %>% 
+  mutate(domain_match=gsub("-","_",domain_match), motif_match=gsub("-","_",motif_match))
+
+HuRI_human_DMI_highScore_AF <- HuRI_human_DMI_highScore_AF %>% rename(AF_accepted=AF_highscored)
+HuRI_human_DMI_highScore_AF <- left_join(HuRI_human_DMI_highScore_AF, HuRI_human_DMI %>% select(Accession, ELM_class) %>% unique() %>% rename(motif_accession=Accession,motif_type=ELM_class))
+HuRI_human_DMI_highScore_AF <- HuRI_human_DMI_highScore_AF %>% rename(motif_type=ELM_class)
+HuRI_human_DMI_highScore_AF <- HuRI_human_DMI_highScore_AF %>% 
+  select(intx_ID, domain_protein, domain_accession, domain_match, motif_protein, motif_accession, motif_type, ELM_type, motif_match, DMIMatchScore,  Modification, domain_uncertain,domain_pathogenic, motif_uncertain, motif_pathogenic, AF_selected, AF_modelled, AF_accepted, DMI_model, model_score 
+)
+
+#write_csv(HuRI_human_DMI_highScore_AF, file="Supp_tables/CSV/Supp_table.DMI_highscored_AF_modelled.csv")
+
+HuRI_human_DMI_highScore_AF %>% filter(AF_selected==1) %>% nrow()
+HuRI_human_DMI_highScore_AF %>% filter(AF_modelled==1) %>% nrow()
+HuRI_human_DMI_highScore_AF %>% filter(AF_accepted==1) %>% nrow()
+HuRI_human_DMI_highScore_AF %>% filter(AF_accepted==1) %>% select(intx_ID) %>% unique() %>% nrow()
+```
+
+```{r SuppTable_7_interface_VUS}
+DMI_AF_mut_hq <- read_tsv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/DMI_AF_mutation_information.tsv")
+ClinVar_mut_dis <- read_tsv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/ClinVar_mutation_information.tsv")
+
+VUS_iface <- DMI_AF_mut_hq %>% filter((structural_region=="d_interface" | structural_region=="m_interface") & Pathogenicity=="Uncertain") %>% select( Fragment, Fragment_id, Chain_protein, residue_n, DMI, pLDDT, Norm_Acc, Acc_change)  %>% unique() #residues at DMI interfaces
+VUS_ClinVar <- ClinVar_mut_dis %>% filter(pathogenicity=="Uncertain") %>% select(UniProt_ID, Residue_n, aa_change, AM_value, AM_pathogenicity) %>% rename(Chain_protein=UniProt_ID, residue_n=Residue_n)
+VUS_iface <- left_join(VUS_iface, VUS_ClinVar)
+VUS_iface <- VUS_iface %>% relocate(aa_change) %>% arrange(desc(Fragment))
+VUS_iface <- VUS_iface %>% rename(UniProt_ID=Chain_protein, DMI_model=DMI, model_res_pLDDT=pLDDT, model_res_RSA=Norm_Acc, model_res_deltaRSA=Acc_change) %>% relocate(aa_change,AM_value, AM_pathogenicity)
+
+VUS_iface <- VUS_iface %>% select(-Fragment_id)
+
+#write_csv(VUS_iface, file="Supp_tables/CSV/Supp_table.UncertainVariants_AM_DMImodel_scores.csv")
+
+VUS_iface_models <- VUS_iface %>% select(DMI_model) %>% unique()
+VUS_iface_models$command <- paste("cp", paste(VUS_iface_models$DMI_model,"*", sep=""), "../Datasets")
+
+#write_tsv(VUS_iface_models %>% select(command), file="../../imb-luckgr2/projects/AlphaFold/HuRI_DMI_AF_modelling/DMI_ClinVar_dataset.sh")
+
+```
