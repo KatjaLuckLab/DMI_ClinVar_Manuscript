@@ -16,6 +16,7 @@ This repository contains scripts used in our manuscript to harvest mutation data
 - Selection of DMI for AF modelling `DMI_AFmodellingSelection.Rmd`
 - Define extended domain boundaries by pLDDT `domain_pLDDT_extension.py`
 - Produce fastas for AF modelling `DMI_fastaFiles.py`
+- AF sample batch run parametes `HuRI_DMI_GPU_script_GPU1.0_commands.sh`
 
 ### AF model info data compilation
 - Retrieval of values of .cif, .pdf and dssp files `Model_data_retrieval.txt`
