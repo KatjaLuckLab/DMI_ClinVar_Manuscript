@@ -2,15 +2,14 @@
 This repository contains scripts used in our manuscript to harvest mutation data, handle DMI prediction data, assemble AF modelling input data, compile it and analyse it. 
 
 ## ClinVar and AlphaMissense data
-### Data preprocessing
-ClinVar_preprocessing_1.ipynb
-ClinVar_preprocessing_2.ipynb
+### Data preprocessing and assembly
+`ClinVar_preprocessing_1.ipynb`, `ClinVar_preprocessing_2.ipynb`
 
 ### Overlap of ClinVar mutations to DMI fragments
-ClinVar_DMI_overlap.ipynb
+`ClinVar_DMI_overlap.ipynb`
 
 ### Mapping of AlphaMissense data to DMI ClinVar data
-AlphaMissense_mapping.Rmd
+`AlphaMissense_mapping.Rmd`
 
 ## Structural models
 ### AF model data assembly
@@ -25,6 +24,10 @@ AlphaMissense_mapping.Rmd
 ## Manuscript
 ### Analysis and graphic generation
 `Figures.Rmd`
+- DMI predictions and ClinVar data analysis
+- BRET results analysis
+- AF model metrics analysis
+- Variat structural classification
 
 ### Preparation of supplementary tables
 `Supp_Tables.Rmd`
