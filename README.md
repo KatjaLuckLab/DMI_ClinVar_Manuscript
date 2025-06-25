@@ -20,5 +20,9 @@ domain_pLDDT_extension.py
 ### AF model info data compilation
 AF_DMI_combine_model_metrics.Rmd
 
-### Analysis and plot generation for manuscript
+## Manuscript
+### Analysis and graphic generation
 Figures.Rmd
+
+### Preparation of supplementary tables
+Tables.Rmd
