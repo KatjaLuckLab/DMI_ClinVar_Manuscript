@@ -1,0 +1,28 @@
+# Various bash commands related to the data retrieval of AF DMI models
+
+## Different model file retrieval
+find AF_predictions -type f -name relaxed*.cif > relaxed_cifs.txt 
+find AF_predictions -type f -name relaxed*.pdb > relaxed_pdbs.txt 
+find AF_predictions -type f -name ranking_debug.json > score_jsons.txt 
+
+## Get pLDDT values
+for i in $(cat all_cif_files.txt); do grep "ATOM" $i  | awk -v filename=$i '{ print filename, $6, $7, $9, $15}' |  uniq >> all_models_pLDDT_values.txt
+
+### Delete Chain from PDB file
+for i in $(cat 2chain_pdb_files.txt); do grep -v -E 'ATOM.{17}B' $i > ../PDB_AccChng/A/${i}_ChainA.pdb;  grep -v -E 'ATOM.{17}'  $i > ../PDB_AccChng/B/${i}_ChainB.pdb; done
+
+for i in $(cat all_ChainB_pdbFiles.txt); do grep -v -E 'TER.{18}A' $i > temp.txt;  mv temp.txt $i; done
+72656
+
+## Run DSSP
+for i in $(cat all_ChainA_pdbFiles.txt); do mkdssp $i ${i}_dssp.txt out --output-format dssp; done
+
+## Get dssp accessibility values
+for i in $(cat all_dssp_files.txt); do grep "[0-9] [AB] " $i | awk -v filename=$i '{ id=substr($0, 8, 3); chain=substr($0, 12, 1); residue=substr($0, 14, 1); acc=substr($0, 36, 3); print filename, id, chain, residue, acc}' >> all_model_dssp_values.txt; done
+
+for i in $(cat all_ChainA_dsspFiles.txt); do grep "[0-9] [AB] " $i | awk -v filename=$i '{ id=substr($0, 8, 3); chain=substr($0, 12, 1); residue=substr($0, 14, 1); acc=substr($0, 36, 3); print filename, id, chain, residue, acc}' >> all_model_chainA_dssp_values.txt; done
+
+for i in $(cat all_ChainB_dsspFiles.txt); do grep "[0-9] [AB] " $i | awk -v filename=$i '{ id=substr($0, 8, 3); chain=substr($0, 12, 1); residue=substr($0, 14, 1); acc=substr($0, 36, 3); print filename, id, chain, residue, acc}' >> all_model_chainB_dssp_values.txt; done
+
+
+
