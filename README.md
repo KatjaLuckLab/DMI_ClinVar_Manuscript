@@ -9,7 +9,7 @@ ClinVar_preprocessing_2.ipynb
 ### Overlap of ClinVar mutations to DMI fragments
 ClinVar_DMI_overlap.ipynb
 
-### Mapping of AlphaMissense data to DMI clinvar data
+### Mapping of AlphaMissense data to DMI ClinVar data
 AlphaMissense_mapping.Rmd
 
 ## Structural models
