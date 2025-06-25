@@ -14,8 +14,9 @@ AlphaMissense_mapping.Rmd
 
 ## Structural models
 ### AF model data assembly
-DMI_AFmodellingSelection.Rmd
-domain_pLDDT_extension.py
+- DMI_AFmodellingSelection.Rmd
+- domain_pLDDT_extension.py
+- Produce fastas for AF modelling [DMI_fastaFiles.py]
 
 ### AF model info data compilation
 AF_DMI_combine_model_metrics.Rmd
