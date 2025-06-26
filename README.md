@@ -1,5 +1,5 @@
 
-This repository contains scripts used in our manuscript to process mutation data from ClinVar, analyze domain-motif interface (DMI) prediction data, set up AlphaFold (AF) runs, and analyze the resulting structural models. 
+This repository contains scripts used in our manuscript to process mutation data from ClinVar, analyze domain-motif interface (DMI) prediction data, process and analyze BRET data, set up AlphaFold (AF) runs, and analyze the resulting structural models. 
 
 ## ClinVar and AlphaMissense data
 ### Data preprocessing and assembly
@@ -21,6 +21,12 @@ This repository contains scripts used in our manuscript to process mutation data
 ### Compilation of data from AF structural models
 - Retrieval of values from .cif, .pdf and dssp files `Model_data_retrieval.txt`
 - Combination of all model metrics `AF_DMI_combine_model_metrics.Rmd`
+
+## BRET data
+### Fitting BRET data
+`titration_analysis_upload_script_v2.py`
+### Computing statistics on BRET data
+`DMI_var_BRET_quantification.ipynb`
 
 ## Manuscript
 ### Analysis and graphic generation
