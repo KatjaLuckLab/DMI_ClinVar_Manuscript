@@ -1,5 +1,5 @@
 
-This repository contains scripts used in our manuscript to harvest mutation data, handle DMI prediction data, assemble AF modelling input data, compile it and analyse it. 
+This repository contains scripts used in our manuscript to process mutation data from ClinVar, analyze domain-motif interface (DMI) prediction data, set up AlphaFold (AF) runs, and analyze the resulting structural models. 
 
 ## ClinVar and AlphaMissense data
 ### Data preprocessing and assembly
@@ -12,15 +12,15 @@ This repository contains scripts used in our manuscript to harvest mutation data
 `AlphaMissense_mapping.Rmd`
 
 ## Structural models
-### AF model data assembly
-- Selection of DMI for AF modelling `DMI_AFmodellingSelection.Rmd`
-- Define extended domain boundaries by pLDDT `domain_pLDDT_extension.py`
-- Produce fastas for AF modelling `DMI_fastaFiles.py`
-- AF sample batch run parametes `HuRI_DMI_GPU_script_GPU1.0_commands.sh`
+### Setting up AF runs
+- Selection of DMIs for AF modelling `DMI_AFmodellingSelection.Rmd`
+- Definition of domain boundaries `domain_pLDDT_extension.py`
+- Fasta file generation for AF modelling `DMI_fastaFiles.py`
+- AF sample batch run parameters `HuRI_DMI_GPU_script_GPU1.0_commands.sh`
 
-### AF model info data compilation
-- Retrieval of values of .cif, .pdf and dssp files `Model_data_retrieval.txt`
-- Combine all model metrics `AF_DMI_combine_model_metrics.Rmd`
+### Compilation of data from AF structural models
+- Retrieval of values from .cif, .pdf and dssp files `Model_data_retrieval.txt`
+- Combination of all model metrics `AF_DMI_combine_model_metrics.Rmd`
 
 ## Manuscript
 ### Analysis and graphic generation
@@ -28,7 +28,7 @@ This repository contains scripts used in our manuscript to harvest mutation data
 - DMI predictions and ClinVar data analysis
 - BRET results analysis
 - AF model metrics analysis
-- Variat structural classification
+- Variant structural classification
 
 ### Preparation of supplementary tables
 `Supp_Tables.Rmd`
