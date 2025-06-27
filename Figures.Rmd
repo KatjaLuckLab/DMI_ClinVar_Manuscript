@@ -119,7 +119,7 @@ rm(Pathogenicity_pLDDT_table, Pathogenicity_IUPred_table)
 #The reference AM table should be extended to include all ClinVar proteins and not only the one from the DMI predictions
 AM_ClinVar_proteins <- read_tsv(file="/Volumes/imb-luckgr/imb-luckgr2/projects/AlphaFold/AFDB_HumanReferenceProteome/AlphaMissense/Chunks/DMI_AM_Complete.tsv", col_names = F)
 
-# Edit table 
+# Edit table column and category names
 colnames(AM_ClinVar_proteins) <- c("UniProt_ID", "AA_change","AM_value", "AM_pathogenicity")
 AM_ClinVar_proteins <- AM_ClinVar_proteins %>% mutate(AM_pathogenicity=case_when(AM_pathogenicity=="benign" ~ "Benign",
                                                                                  AM_pathogenicity=="ambiguous" ~ "Ambiguous",
@@ -150,15 +150,14 @@ HuRI_DMIs <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_Clin
 # Filter HuRI DMI table to get scores
 HuRI_DMI_scores <- HuRI_DMIs %>% select(intx_ID, SLiMProtein, Accession, SLiMMatch, DomainProtein, DomainID1, DomainMatch1, DMIMatchScore)
 
-HuRI_DMI_scores %>% filter(DMIMatchScore >= 0.7) %>% nrow()
+HuRI_DMI_scores %>% filter(DMIMatchScore >= 0.7) %>% nrow() 
 HuRI_DMI_scores %>% filter(DMIMatchScore >= 0.7) %>% select(intx_ID) %>% unique() %>% nrow()
 (HuRI_DMI_scores %>% filter(DMIMatchScore >= 0.7) %>% nrow()) /( HuRI_DMI_scores %>% nrow())
-
 HuRi_DMI %>% select(Accession) %>% unique()
 ```
 
 ```{r Figure1_Data_RRS4}
-# Load all RRS4 data
+# Load all RRS data
 RRS1_ROC <- read_tsv(file="/Volumes/imb-luckgr/projects/dmi_predictor/ML_items/RRS/RRSv1/RRSv1_avg_ROC_scores.txt", col_names = T, skip = 1)
 RRS2_ROC <- read_tsv(file="/Volumes/imb-luckgr/projects/dmi_predictor/ML_items/RRS/RRSv2/RRSv2_avg_ROC_scores.txt", col_names = T, skip = 1)
 RRS3_ROC <- read_tsv(file="/Volumes/imb-luckgr/projects/dmi_predictor/ML_items/RRS/RRSv3/RRSv3_avg_ROC_scores.txt", col_names = T, skip = 1)
@@ -183,7 +182,7 @@ rm(RRS1_PRC,RRS2_PRC,RRS3_PRC,RRS4_PRC)
 ```
 
 ```{r Figure1_Data_DMIscores}
-# Count number of DMIs based on an increasing trheshold filter
+# Count number of DMIs based on an increasing threshold filter
 DMIscores_count <- tibble(bin=seq(from = 0, to = 1, by = 0.05), count_dmi=0, count_ppi=0)
 
 cc_v <- c() ## DMI count
@@ -245,8 +244,9 @@ HURI_ELM_DMI_PPI_list <- list(CLV = HuRI_DMIs %>% filter(ELM_type=="CLV" & DMIMa
 DMI_ELM_classes <- HuRI_DMIs %>% filter(DMIMatchScore >= 0.7) %>% select(Accession, ELM_class, ELM_type) %>% unique()
 ```
 
-```{r Figure1_SuppData_FeatureImportance}
-features <- read_csv("/Users/jesusav/Desktop/Supp_tables/csv/DMI_ML_FeatureImportance.csv")
+```{r Figure1_SuppData_FeatureImportance, eval=F}
+## Load feature importarnce table for RRS4
+features <- read_csv("...DMI_ML_FeatureImportance.csv")
 features <- features %>% select(Feature, Importance, RSS4)
 
 feat_summary <- features %>% group_by(Feature) %>% 
@@ -315,6 +315,7 @@ HuRI_DMIs %>% filter(DMIMatchScore>=0.7 & SLiMProtein=="Q8WWZ3" & ELM_class=="LI
 ```
 
 ```{r Figure1_Data2}
+# Load all HuRI data
 HuRi_DMI <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/HuRI_DMIs-ClinVar_mutations/HuRI_human_highScores.csv")
 HuRi_DMI <- HuRi_DMI %>% filter(DMIMatchScore>=0.7)
 
@@ -1675,7 +1676,7 @@ p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="PPP3CA"), aes(fct_reorder(canoni
 p2 <- ggplot(domain_BRET %>% filter(NL_symbol=="PPP3CA"), aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_cBRET)) + 
   geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
   scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("PPP3CA mutants") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+  xlab("PPP3CA mutants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_text(hjust=0.8),
@@ -1887,6 +1888,22 @@ tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_WWOX_maxBRET.tiff", units=
 p2
 dev.off()
 
+p1 <- ggplot(motif_BRET %>% filter(NL_symbol=="WWOX") %>% filter(!(mCit_symbol=="LITAF" & residue>20)) %>%
+               mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
+             aes(NL_symbol,  fct_reorder(label, residue), fill=tstat_bret50  )) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
+  ylab("Motif deletions") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+  theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
+        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
+        axis.ticks = element_line(size = 0), axis.title.x=element_blank(),
+        axis.text.x = element_text(), plot.title=element_blank(),
+        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
+        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
+  facet_grid2(category~., scales = "free_y", switch = "y", space="free",
+                 strip = strip_themed(text_y = element_text(size=0),
+                                     background_y = elem_list_rect( fill =colors_BRET[2:3]  )))
+
 p2 <- ggplot(motif_BRET %>% filter(NL_symbol=="WWOX") %>% filter(!(mCit_symbol=="LITAF" & residue>20)) %>%
                mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
              aes(NL_symbol,  fct_reorder(label, residue), fill=tstat_cBRET  )) + 
@@ -1902,9 +1919,13 @@ p2 <- ggplot(motif_BRET %>% filter(NL_symbol=="WWOX") %>% filter(!(mCit_symbol==
   facet_grid2(category~., scales = "free_y", switch = "y", space="free",
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill =colors_BRET[2:3]  )))
+p1
 p2
 
 # SAVE TIFF
+tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_WWOX_BRET50_deletions.tiff", units="cm", width=9.7, height=9, res=800)
+p1
+dev.off()
 tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_WWOX_maxBRET_deletions.tiff", units="cm", width=10, height=9, res=800)
 p2
 dev.off()
@@ -2315,7 +2336,7 @@ p2 <- ggplot(mutants_BRET %>% filter(NL_symbol=="IQCB1" & motif_variant==TRUE) %
   ylab("Domain variants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
   theme(text = element_text(size = 20), 
         panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
+        axis.text = element_text(color = "black"), axis.text.x=element_text(size = 25) ,panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.x=element_blank(), plot.title=element_blank(),
         legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
         legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
@@ -2394,6 +2415,7 @@ p_legend
 ```
 
 ```{r Figure2_Graph_titrationPlots}
+#BRET_mutant_pairs <- BRET_mutant_pairs %>% mutate(mCit_construct=case_when(mCit_construct=="MYD88_NA" ~ "MYD88_134_138del", TRUE ~ mCit_construct)) 
 for(i in 1:nrow(BRET_mutant_pairs)){
   pair_info <- BRET_mutant_pairs[i,] %>% unlist() %>% as.vector()
   
@@ -2440,13 +2462,13 @@ for(i in 1:nrow(BRET_mutant_pairs)){
       #annotate(geom="text", label=test_label, x=max(plot_data$ratio)*0.9, y=max(plot_data$cBRET)/3, size=3, color="red")+
       theme_classic() + labs(fill = "Pathogenicity") + scale_color_manual(values=c("#d52221","black")) +
       theme(text = element_text(size = 18), axis.text = element_text(color = "black"), legend.position="none", 
-            plot.title= element_text(size = 13), axis.ticks = element_line(linewidth = 1)) +
+            plot.title= element_text(size = 13), axis.ticks = element_line(linewidth = 1, color = "black")) +
       scale_x_continuous(breaks = scales::pretty_breaks(n = 2)) + 
       scale_y_continuous(labels = function(x) number(x, accuracy = 0.1), 
                          breaks = scales::pretty_breaks(n = 3), limits=c(0,max((plot_data$cBRET))*1.1))
   
-  file_name <- paste("/Users/jesusav/Desktop/Titrations/",pair_info[5],"_",pair_info[6],".tiff",sep="")
-    tiff(file_name, units="cm", width=8, height=6, res=800)
+  file_name <- paste("/Users/jesusav/Desktop/Titrations/PDF/",pair_info[5],"_",pair_info[6],".pdf",sep="")
+    pdf(file_name, width=cm2in(8.15), height=cm2in(6))
     print(p)
     dev.off()
     
@@ -2461,13 +2483,13 @@ for(i in 1:nrow(BRET_mutant_pairs)){
       #annotate(geom="text", label=test_label, x=max(plot_data$ratio)*0.9, y=max(plot_data$cBRET)/3, size=3, color="red")+
       theme_classic() + labs(fill = "Pathogenicity") + scale_color_manual(values=c("#d52221","black")) +
       theme(text = element_text(size = 18), axis.text = element_text(color = "black"), legend.position="none", 
-            plot.title= element_text(size = 13), axis.ticks = element_line(linewidth = 1)) +
+            plot.title= element_text(size = 13), axis.ticks = element_line(linewidth = 1, color = "black")) +
       scale_x_continuous(breaks = scales::pretty_breaks(n = 2)) + 
       scale_y_continuous(labels = function(x) number(x, accuracy = 0.1), 
                          breaks = scales::pretty_breaks(n = 3), limits=c(0,max((plot_data$cBRET))*1.1)) 
     
-  file_name <- paste("/Users/jesusav/Desktop/Titrations/",pair_info[5],"_",pair_info[6],".tiff",sep="")
-    tiff(file_name, units="cm", width=8, height=6, res=800)
+  file_name <- paste("/Users/jesusav/Desktop/Titrations/PDF/",pair_info[5],"_",pair_info[6],".pdf",sep="")
+    pdf(file_name, width=cm2in(8.15), height=cm2in(6))
     print(p)
     dev.off()
     
@@ -2480,6 +2502,7 @@ for(i in 1:nrow(BRET_mutant_pairs)){
 }
 
 #BRET_results %>% filter(NL_symbol=="CTBP1" & mCit_symbol=="IKZF1") %>% arrange(project_id) %>% select(NL_plasmid, mCit_plasmid, tstat_bret50, tstat_cBRET, sig_BRET50, sig_maxBRET)
+
 ```
 
 
@@ -2835,6 +2858,7 @@ dev.off()
 
 
 DMI_AF_mut_hq %>% count(structural_region, Pathogenicity)
+DMI_AF_mut_hq %>% count(structural_region, AM_pathogenicity)
 ```
 
 ```{r Figure5_Graphic_c_DMI_AF_ClinVar_AM_interfacial}
