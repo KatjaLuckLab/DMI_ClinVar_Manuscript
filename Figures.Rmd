@@ -50,6 +50,16 @@ amino_acid_map <- c(
  
 elm_categories <- c("Cleavage", "Degrons","Subst. recog.", "Scaffolding", "PTM sites", "Localization")
 strc_categories <- c("D. interface", "D. buried","D. surface", "M. interface", "M. not int.")
+
+#functions for saving images in pdf
+cm2in <- function(cm_num){
+  in_num <- cm_num/2.54
+  return(in_num)
+}
+in2cm <- function(in_num){
+  cm_num <- in_num*2.54
+  return(cm_num)
+}
 ```
 
 
@@ -153,7 +163,7 @@ HuRI_DMI_scores <- HuRI_DMIs %>% select(intx_ID, SLiMProtein, Accession, SLiMMat
 HuRI_DMI_scores %>% filter(DMIMatchScore >= 0.7) %>% nrow() 
 HuRI_DMI_scores %>% filter(DMIMatchScore >= 0.7) %>% select(intx_ID) %>% unique() %>% nrow()
 (HuRI_DMI_scores %>% filter(DMIMatchScore >= 0.7) %>% nrow()) /( HuRI_DMI_scores %>% nrow())
-HuRi_DMI %>% select(Accession) %>% unique()
+#HuRi_DMI %>% select(Accession) %>% unique()
 ```
 
 ```{r Figure1_Data_RRS4}
@@ -423,11 +433,20 @@ BRET_results <- BRET_results %>%
 
 BRET_results <- BRET_results %>% mutate(BRET_category=case_when(num_use_fit_WT==3 & num_use_fit_MUT==3 ~ "BRET50", 
                                                                 num_repl_include_MUT==3 & num_repl_include_MUT==3 ~ "maxBRET",
-                                                                TRUE ~ "other"))
+                                                              TRUE ~ "other"))
+### Fold change calculations
+BRET_results <- BRET_results  %>%  
+  mutate(avg_bret50_MUT = as.double(gsub("\\,","\\.",avg_bret50_MUT)) ) %>% 
+  mutate(avg_bret50_WT = as.double(gsub("\\,","\\.",avg_bret50_WT)) )%>% 
+  mutate(BRET50_Log2_FChng=log2(avg_bret50_MUT/avg_bret50_WT)) 
+
+BRET_results <- BRET_results  %>%  
+  mutate(avg_cBRET_WT = as.double(gsub("\\,","\\.",avg_cBRET_WT)) ) %>% 
+  mutate(avg_cBRET_MUT = as.double(gsub("\\,","\\.",avg_cBRET_MUT)) )%>% 
+  mutate(maxBRET_Log2_FChng=log2(avg_cBRET_MUT/avg_cBRET_WT)) 
 
 mutant_descriptions <- read_csv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/BRET_experiments/mutant_description.csv")
 mutant_descriptions <- mutant_descriptions %>% select(-template_plasmid_name, -description, -success, -alpha_missense_pred)
-
 
 ### Domain validation data
 domain_BRET_categories <- BRET_results %>% select(mCit_symbol) %>% unique()
@@ -443,12 +462,14 @@ domain_BRET <- BRET_results %>% filter(mut_type=="Domain validation") %>%
   mutate(residue=as.numeric(gsub("[A-Z]", "", gsub("^.*?_", "", mutant)))) %>% # Mutant index
   mutate(tstat_bret50=case_when(tstat_bret50 < -20 ~ -20, tstat_bret50 > 20 ~ 20, TRUE ~ tstat_bret50), 
          tstat_cBRET=case_when(tstat_cBRET < -20 ~ -20, tstat_cBRET > 20 ~ 20, TRUE ~ tstat_cBRET)) # Capping values
-domain_BRET <- domain_BRET %>% select(mCit_plasmid,NL_symbol, mCit_symbol, pval_bret50, tstat_bret50, pval_cBRET, tstat_cBRET, sig_BRET50, sig_maxBRET, BRET_category, mutant, residue)
+domain_BRET <- domain_BRET %>% select(mCit_plasmid,NL_symbol, mCit_symbol, pval_bret50, tstat_bret50, pval_cBRET, tstat_cBRET, sig_BRET50, sig_maxBRET, BRET_category, mutant, residue, BRET50_Log2_FChng, maxBRET_Log2_FChng)
 domain_BRET <- left_join(domain_BRET, domain_BRET_categories)
 domain_BRET$category <- factor(domain_BRET$category, levels=c("negative", "positive", "candidate"))
 domain_BRET <- domain_BRET  %>% mutate(mutant=case_when(mutant=="IQCB1" ~ gsub("pcDNA3.1 mCit-His3C-","",mCit_plasmid), TRUE~ mutant))%>% 
   separate(mutant, c("gene_symbol","mutation"), sep="_", remove=F)
 domain_BRET <- left_join(domain_BRET, mutant_descriptions)
+
+domain_BRET
 
 
 ### Motif validation data
@@ -457,7 +478,7 @@ motif_BRET <- BRET_results %>% filter(mut_type=="Motif validation") %>%
   mutate(residue=as.numeric(gsub("[A-Z]", "", gsub("_.*?$", "",gsub("^.*?_", "", mutant))))) %>% # Mutant index
   mutate(tstat_bret50=case_when(tstat_bret50 < -20 ~ -20, tstat_bret50 > 20 ~ 20, TRUE ~ tstat_bret50), 
          tstat_cBRET=case_when(tstat_cBRET < -20 ~ -20, tstat_cBRET > 20 ~ 20, TRUE ~ tstat_cBRET)) # Capping values
-motif_BRET <- motif_BRET %>% select(NL_plasmid, NL_symbol, mCit_symbol, pval_bret50, tstat_bret50, pval_cBRET, tstat_cBRET, sig_BRET50, sig_maxBRET, BRET_category, mutant, residue)
+motif_BRET <- motif_BRET %>% select(NL_plasmid, NL_symbol, mCit_symbol, pval_bret50, tstat_bret50, pval_cBRET, tstat_cBRET, sig_BRET50, sig_maxBRET, BRET_category, mutant, residue, BRET50_Log2_FChng, maxBRET_Log2_FChng)
 motif_BRET <- left_join(motif_BRET, domain_BRET_categories)
 motif_BRET$category <- factor(motif_BRET$category, levels=c("negative", "positive", "candidate"))
 
@@ -476,7 +497,7 @@ mutants_BRET <- BRET_results %>% filter(exp_category=="variant") %>%
   mutate(residue=as.numeric(gsub("[A-Z]", "", gsub("^.*? ", "", mutant)))) %>% # Mutant index
   mutate(tstat_bret50=case_when(tstat_bret50 < -20 ~ -20, tstat_bret50 > 20 ~ 20, TRUE ~ tstat_bret50), 
          tstat_cBRET=case_when(tstat_cBRET < -20 ~ -20, tstat_cBRET > 20 ~ 20, TRUE ~ tstat_cBRET)) # Capping values
-mutants_BRET <- mutants_BRET %>% select(NL_plasmid, mCit_plasmid,NL_symbol, mCit_symbol, pval_bret50, tstat_bret50, pval_cBRET, tstat_cBRET, sig_BRET50, sig_maxBRET, BRET_category, motif_variant, domain_variant, mutant, residue)
+mutants_BRET <- mutants_BRET %>% select(NL_plasmid, mCit_plasmid,NL_symbol, mCit_symbol, pval_bret50, tstat_bret50, pval_cBRET, tstat_cBRET, sig_BRET50, sig_maxBRET, BRET_category, motif_variant, domain_variant, mutant, residue, BRET50_Log2_FChng, maxBRET_Log2_FChng)
 
 mutants_BRET_categories <- mutants_BRET %>% select(mutant) %>% unique()
 
@@ -505,6 +526,9 @@ domain_BRET %>% filter(mutant=="CTBP1_C27E")
 
 motif_BRET %>% select(mutant) %>% unique() 
 motif_BRET %>% filter(NL_plasmid=="") %>% unique() 
+
+mutants_BRET %>% count(motif_variant, domain_variant)
+
 ```
 
 ```{r Figure2_data_titration}
@@ -559,15 +583,17 @@ BRET_mutant_pairs <- BRET_mutant_pairs %>%
 ```{r Figure3_data1}
 BRET_mutants <- read_tsv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/BRET_experiments/tested_disease_mutations_structure_computations_extended.txt")
 
-BRET_mutants <- BRET_mutants %>% mutate(AlphaMissense=case_when(AlphaMissense=="likely pathogenic"  ~ "Pathogenic",
-                                                                AlphaMissense=="uncertain"  ~ "Ambiguos",
-                                                                AlphaMissense=="likely benign"  ~ "Benign", TRUE ~ AlphaMissense))
+BRET_mutants <- BRET_mutants %>% 
+  mutate(AlphaMissense=case_when(AlphaMissense=="likely pathogenic"  ~ "Pathogenic",
+                                 AlphaMissense=="uncertain"  ~ "Ambiguos",
+                                 AlphaMissense=="likely benign"  ~ "Benign", TRUE ~ AlphaMissense))
 
-BRET_mutants <- BRET_mutants %>% mutate(Fragment=case_when(mutation_location=="domain"  ~ "Domain",
-                                                                mutation_location=="outside motif" |  mutation_location=="core motif" ~ "Motif"))
+BRET_mutants <- BRET_mutants %>% 
+  mutate(Fragment=case_when(mutation_location=="domain"  ~ "Domain",
+                            mutation_location=="outside motif" |  mutation_location=="core motif" ~ "Motif"))
 
-BRET_mutants <- BRET_mutants %>% mutate(interface = case_when(pLDDT >= 80 & deltaRSA<(-0.05)  ~ "interface",
-                                                                TRUE ~ "not_interface"))  %>% 
+BRET_mutants <- BRET_mutants %>% 
+  mutate(interface = case_when(pLDDT >= 80 & deltaRSA<(-0.05)  ~ "interface", TRUE ~ "not_interface"))  %>% 
   mutate(structural_region = case_when(Fragment=="Domain" & interface == "interface"  ~ "d_interface",
                                        Fragment=="Domain" & interface == "not_interface" & RSA>0.25 ~ "d_surface",
                                        Fragment=="Domain" & interface == "not_interface" & RSA<=0.25 ~ "d_buried",
@@ -575,15 +601,20 @@ BRET_mutants <- BRET_mutants %>% mutate(interface = case_when(pLDDT >= 80 & delt
                                        Fragment=="Motif" & interface == "not_interface" ~ "m_n_interface",
                                        TRUE ~ "other" ) )
 
-BRET_mutants$structural_region <- ordered(BRET_mutants$structural_region, levels = c("d_interface", "d_buried","d_surface", "m_interface","m_n_interface"))  
-BRET_mutants$AlphaMissense <- ordered(BRET_mutants$AlphaMissense, levels = c("Benign", "Ambiguos","Pathogenic")) 
+BRET_mutants$structural_region <- ordered(BRET_mutants$structural_region, 
+                                          levels = c("d_interface", "d_buried","d_surface", "m_interface","m_n_interface"))  
+BRET_mutants$AlphaMissense <- ordered(BRET_mutants$AlphaMissense, 
+                                      levels = c("Benign", "Ambiguos","Pathogenic")) 
 
-BRET_mutants <- BRET_mutants %>% filter(!(motif_partner=="LITAF" & (aa_change=="P58L" |aa_change=="P59R" |aa_change=="Y61C"  )))
+BRET_mutants <- BRET_mutants %>% 
+  filter(!(motif_partner=="LITAF" & (aa_change=="P58L" |aa_change=="P59R" |aa_change=="Y61C"  )))
 
-BRET_mutants_motif <-  BRET_mutants %>% filter(mutation_location!="domain") %>% mutate(mutation_location=case_when(mutation_location=="core motif" ~ "Core",
-                                                                                                                   mutation_location=="outside motif" ~ "Flank"))
+BRET_mutants_motif <-  BRET_mutants %>% 
+  filter(mutation_location!="domain") %>% 
+  mutate(mutation_location=case_when(mutation_location=="core motif" ~ "Core",
+                                     mutation_location=="outside motif" ~ "Flank"))
+
 BRET_mutants %>% filter(structural_region=="d_interface")
-
 BRET_mutants %>% filter(structural_region=="d_surface")
 
 #BRET_mutants_update <- mutants_BRET %>% mutate(exp_conclusion=case_when(pval_bret50 <= 0.05 | pval_cBRET <= 0.05 ~ "disrupting", TRUE ~ "not_disrupting")) %>%
@@ -593,15 +624,19 @@ BRET_mutants %>% filter(structural_region=="d_surface")
 #write_tsv(BRET_mutants_update, file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/BRET_experiments/tested_disease_mutations_structure_computations_extended_2.tsv")
 
 BRET_mutants_update <- read_tsv(file="/Volumes/imb-luckgr/Luck_lab_members/Jesus/DMIs_ClinVar/Datasets/BRET_experiments/tested_disease_mutations_structure_computations_extended_2.tsv")
+BRET_mutants_update <- BRET_mutants_update %>% mutate(exp_conclusion=case_when(pval_cBRET <= 0.05 ~ "disrupting", TRUE ~ "not_disrupting")) 
 
-BRET_mutants_update <- BRET_mutants_update %>% mutate(AlphaMissense=case_when(AlphaMissense=="likely pathogenic"  ~ "Pathogenic",
-                                                                AlphaMissense=="uncertain"  ~ "Ambiguos",
-                                                                AlphaMissense=="likely benign"  ~ "Benign", TRUE ~ AlphaMissense))
+BRET_mutants_update <- BRET_mutants_update %>% 
+  mutate(AlphaMissense=case_when(AlphaMissense=="likely pathogenic"  ~ "Pathogenic",
+                                 AlphaMissense=="uncertain"  ~ "Ambiguos",
+                                 AlphaMissense=="likely benign"  ~ "Benign", TRUE ~ AlphaMissense))
 
-BRET_mutants_update <- BRET_mutants_update %>% mutate(Fragment=case_when(mutation_location=="domain"  ~ "Domain",
-                                                                mutation_location=="outside motif" |  mutation_location=="core motif" ~ "Motif"))
+BRET_mutants_update <- BRET_mutants_update %>% 
+  mutate(Fragment=case_when(mutation_location=="domain"  ~ "Domain",
+                            mutation_location=="outside motif" |  mutation_location=="core motif" ~ "Motif"))
 
-BRET_mutants_update <- BRET_mutants_update %>% mutate(interface = case_when(pLDDT >= 80 & deltaRSA<(-0.05)  ~ "interface", TRUE ~ "not_interface"))  %>% 
+BRET_mutants_update <- BRET_mutants_update %>% 
+  mutate(interface = case_when(pLDDT >= 80 & deltaRSA<(-0.05)  ~ "interface", TRUE ~ "not_interface"))  %>% 
   mutate(interface = case_when( mutation_location=="outside motif" ~ "not_interface", TRUE ~ interface)) %>% 
   mutate(structural_region = case_when(Fragment=="Domain" & interface == "interface"  ~ "d_interface",
                                        Fragment=="Domain" & interface == "not_interface" & RSA>0.25 ~ "d_surface",
@@ -610,12 +645,35 @@ BRET_mutants_update <- BRET_mutants_update %>% mutate(interface = case_when(pLDD
                                        Fragment=="Motif" & interface == "not_interface" ~ "m_n_interface",
                                        TRUE ~ "other" ) )
 
-BRET_mutants_update$structural_region <- ordered(BRET_mutants_update$structural_region, levels = c("d_interface", "d_buried","d_surface", "m_interface","m_n_interface"))  
-BRET_mutants_update$AlphaMissense <- ordered(BRET_mutants_update$AlphaMissense, levels = c("Benign", "Ambiguos","Pathogenic")) 
-BRET_mutants_update_motif <-  BRET_mutants_update %>% filter(mutation_location!="domain") %>%
-  mutate(mutation_location=case_when(mutation_location=="core motif" ~ "Core", mutation_location=="outside motif" ~ "Flank"))
+BRET_mutants_update$structural_region <- ordered(BRET_mutants_update$structural_region, 
+                                                 levels = c("d_interface", "d_buried","d_surface", "m_interface","m_n_interface"))  
+BRET_mutants_update$AlphaMissense <- ordered(BRET_mutants_update$AlphaMissense, 
+                                             levels = c("Benign", "Ambiguos","Pathogenic")) 
+# BRET_mutants_update_motif <-  BRET_mutants_update %>% 
+#   filter(mutation_location!="domain") %>%
+#   mutate(mutation_location=case_when(mutation_location=="core motif" ~ "Core", 
+#                                      mutation_location=="outside motif" ~ "Flank"))
 
 BRET_mutants_update %>% filter(mCit_symbol=="RXRB")
+BRET_mutants_update %>% count(fragment_variant)
+
+BRET_results <- BRET_results %>% 
+  mutate(aa_changeA=gsub(mCit_symbol,"",gsub("^.*?_","", gsub("pcDNA3.1 cmyc-NL-", "", NL_plasmid)))) %>%
+  mutate(aa_changeB=gsub(mCit_symbol,"",gsub("^.*?_","", gsub("pcDNA3.1 mCit-His3C-", "", mCit_plasmid)))) %>%
+  mutate(aa_change=case_when(aa_changeA==NL_symbol ~ aa_changeB, aa_changeB==mCit_symbol ~ aa_changeA, aa_changeB=="" ~ aa_changeA)) %>%
+  select(-aa_changeA, -aa_changeB)
+
+BRET_mutants_update  <- left_join(BRET_mutants_update %>% mutate(tstat_cBRET=as.character(round(tstat_cBRET,5))), 
+                                  BRET_results %>% mutate(tstat_cBRET=as.character(round(tstat_cBRET,5))) %>% 
+                                    select(NL_symbol, mCit_symbol,tstat_cBRET, maxBRET_Log2_FChng)
+                                  ) 
+
+BRET_mutants_update_motif <-  BRET_mutants_update %>% 
+  filter(mutation_location!="domain") %>%
+  mutate(mutation_location=case_when(mutation_location=="core motif" ~ "Core", 
+                                     mutation_location=="outside motif" ~ "Flank"))
+
+BRET_mutants%>% filter(motif_partner=="LITAF") %>% arrange(aa_change) %>% select(aa_change, mutation_location, structural_region, AlphaMissense, RSA, deltaRSA, pLDDT)
 ```
 
 
@@ -1015,13 +1073,6 @@ HURI_ClinVar_mut_motif_summ %>% filter(pathogenicity=="Uncertain") %>% count(var
 
 
 
-```{r misc}
-#functions for saving images in pdf
-cm2in <- function(cm_num){
-  in_num <- cm_num/2.54
-  return(in_num)
-}
-```
 
 ```{r Figure1_Graphic_a_ClinVar_count}
 # Number of ClinVar variants
@@ -1029,7 +1080,7 @@ p1 <- ggplot(ClinVar_mutations, aes(y=pathogenicity , fill=pathogenicity)) + geo
   ggtitle("ClinVar variant pathogenicity") +  ylab("Clinical relevance") + xlab("Variant number") + xlim(0, 850000) +
   theme_classic() + scale_fill_manual(values = colors_Var) + labs(fill = "Pathogenicity") +
   theme(text = element_text(size = 15), axis.text = element_text(color = "black"), legend.position = "none",  
-        axis.ticks = element_line(linewidth = 1), axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) + 
+        axis.ticks = element_line(linewidth = 1, color = "black"), axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) + 
   scale_x_continuous(labels = scales::comma) + scale_y_discrete(limits=rev) 
 p1
 # with labels
@@ -1107,14 +1158,15 @@ p1 <- ggplot(RRS_ROC, aes(x=mean_fpr, y=mean_tpr, fill=RRS)) +  geom_line(color=
   #annotate(geom="text", label="mean AUC = 0.93", x=0.7, y=0.1, size=3, color="red")+
   ggtitle("RRS ROC") + xlab("1 - Specificity") + ylab("Sensitivity") + 
   theme_classic() + 
-  theme(text = element_text(size = 25), axis.text = element_text(color = "black"), legend.position = "none") + 
+  theme(text = element_text(size = 25), axis.text = element_text(color = "black"), 
+        axis.ticks = element_line(color = "black"), legend.position = "none") + 
   scale_x_continuous(breaks=c(0,0.5,1)) + scale_y_continuous(breaks=c(0,0.5,1)) 
 
 p1
 p1 + geom_point() + geom_text(aes(label = mean_tpr), vjust = -1, hjust = -0.2, size = 3) 
 
 #SAVE TIFF
-tiff("Figures/Figure1_graphics/DMI_predictor_ROC.tiff", units="cm", width=8, height=8, res=800)
+tiff("Figures/Figure1_graphics/DMI_predictor_ROC.tiff", units="cm", width=in2cm(4), height=in2cm(4), res=800)
 p1
 dev.off()
 #SAVE PDF
@@ -1127,14 +1179,15 @@ p2 <- ggplot(RRS_PRC, aes(x=mean_recall, y=mean_precision, fill=RRS)) +  geom_li
   #annotate(geom="text", label="mean AP = 0.93", x=0.3, y=0.5, size=3, color="red")+
   ggtitle("RRS PRC") + xlab("Recall") + ylab("Precision") + 
   theme_classic() + 
-  theme(text = element_text(size = 25), axis.text = element_text(color = "black"),legend.position = "none") + 
+  theme(text = element_text(size = 25), axis.text = element_text(color = "black"), 
+        axis.ticks = element_line(color = "black"), legend.position = "none") + 
   scale_x_continuous(breaks=c(0,0.5,1)) 
 
 p2
 p2 + geom_point() + geom_text(aes(label = mean_precision), vjust = -1, hjust = -0.2, size = 3) 
 
 #SAVE TIFF
-tiff("Figures/Figure1_graphics/DMI_predictor_PRC.tiff", units="cm", width=8, height=8, res=800)
+tiff("Figures/Figure1_graphics/DMI_predictor_PRC.tiff", units="cm", width=in2cm(4), height=in2cm(4), res=800)
 p2
 dev.off()
 #SAVE PDF
@@ -1149,8 +1202,10 @@ dev.off()
 p1 <- ggplot(HuRI_DMIs %>% filter(DMIMatchScore >= 0.7), aes(y = ELM_type, fill = ELM_type)) + geom_bar(width = 0.7) + 
   ylab("ELM category") + xlab("DMI number") + 
   scale_fill_manual(values=colors_ELMtypes) + 
-  theme_classic() + theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black"),
-                  axis.ticks = element_line(linewidth = 1), axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) + 
+  theme_classic() + 
+  theme(text = element_text(size = 18), legend.position="none", 
+        axis.text = element_text(color = "black"), axis.ticks = element_line(linewidth = 1, color = "black"), 
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) + 
   scale_x_continuous(labels = scales::comma, limits = c(0,7000)) + 
   scale_y_discrete(limits=rev, labels = rev(elm_categories)) 
 p1
@@ -1172,8 +1227,10 @@ p2 <- ggplot(HuRI_DMIs %>% filter(DMIMatchScore >= 0.7) %>% select(intx_ID, ELM_
   geom_bar(width = 0.7) + 
   ylab("ELM category") + xlab("PPI number") + 
   scale_fill_manual(values=colors_ELMtypes) +  
-  theme_classic() + theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black"), 
-                 axis.ticks = element_line(linewidth = 1), axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) + 
+  theme_classic() + 
+  theme(text = element_text(size = 18), legend.position="none", 
+        axis.text = element_text(color = "black"), axis.ticks = element_line(linewidth = 1, color = "black"), 
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) + 
   scale_x_continuous(labels = scales::comma, limits = c(0,2000)) + 
   scale_y_discrete(limits=rev, labels = rev(elm_categories)) 
 p2
@@ -1200,8 +1257,8 @@ p1 <- ggplot(HURI_ClinVar_mutation, aes(x=fragment_type , fill=pathogenicity)) +
   ggtitle("DMI - Region variants") +  xlab("Protein region") + ylab("Variant fraction") + 
   theme_minimal() + scale_fill_manual(values=colors_Var) + labs(fill = "Pathogenicity") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), legend.position = "null", 
-        axis.text = element_text(color = "black"),panel.grid.minor = element_blank(), 
-        axis.ticks.y = element_line(linewidth = 0.5), axis.title.x=element_blank())+
+        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
+        axis.ticks.y = element_line(linewidth = 0.5, color = "black"), axis.title.x=element_blank())+
   scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
 
 p1
@@ -1224,7 +1281,7 @@ p1 <- ggplot(HURI_ClinVar_mutation, aes(x=fragment_type , fill=pathogenicity)) +
   theme_minimal() + scale_fill_manual(values=colors_Var) + labs(fill = "Pathogenicity") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"),panel.grid.minor = element_blank(), 
-        axis.ticks.y = element_line(linewidth = 0.5), axis.title.x=element_blank())+
+        axis.ticks.y = element_line(linewidth = 0.5, color = "black"), axis.title.x=element_blank())+
   scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
 p1
 
@@ -1267,7 +1324,6 @@ round(Fragment_contingency_chisq$observed,2)
 
 
 
-
 ```{r ED_Figure1_Graphic_a_ClinVar_pLDDT}
 p1 <- ggplot(ClinVar_mut_dis, aes(x=avg_pLDDT, y=pathogenicity , color=as.factor(pathogenicity))) + 
   geom_quasirandom(size=0.5, alpha=0.4) + geom_boxplot(color="black", width=0.25, outlier.alpha = 0.2, alpha=0.5) +
@@ -1280,7 +1336,7 @@ p1 <- ggplot(ClinVar_mut_dis, aes(x=avg_pLDDT, y=pathogenicity , color=as.factor
 p1
 
 #SAVE PNG
-png("Figures/ExtendedData_Figures/ClinVar_pLDDT.png", units="cm", width=11, height=8, res=800)
+png("Figures/ExtendedFigure_1/ClinVar_pLDDT.png", units="cm", width=11, height=8, res=800)
 p1
 dev.off()
 # #SAVE PDF
@@ -1290,7 +1346,7 @@ dev.off()
 
 ```
 
-```{r EF_Figure1_Graphic_b_FeatureImportance}
+```{r EF_Figure1_Graphic_b_FeatureImportance, evaluate=F}
 p1 <- ggplot(feat_summary, aes(x=importance_mean, y=reorder(Feature,importance_mean))) + 
   geom_bar(stat="identity", fill="darkgrey") + 
   geom_errorbar(aes(xmin = importance_mean-importance_sd, xmax = importance_mean+importance_sd), width=.2)+
@@ -1300,11 +1356,9 @@ p1 <- ggplot(feat_summary, aes(x=importance_mean, y=reorder(Feature,importance_m
         plot.title = element_blank(), axis.ticks = element_line(linewidth = 1)) 
 p1
 #SAVE PNG
-tiff("Figures/ExtendedData_Figures/RF_feature_importance.tiff", units="cm", width=12, height=8, res=800)
+tiff("Figures/ExtendedFigure_1/RF_feature_importance.tiff", units="cm", width=12, height=8, res=800)
 p1
 dev.off()
-
-
 
 ggplot(features %>% filter(RSS4==1), aes(x=Importance, y=reorder(Feature,Importance))) + 
   geom_bar(stat="identity", fill="darkgrey") + 
@@ -1314,7 +1368,77 @@ ggplot(features %>% filter(RSS4==1), aes(x=Importance, y=reorder(Feature,Importa
         plot.title = element_blank(), axis.ticks = element_line(linewidth = 1)) 
 ```
 
-```{r ED_Figure1_Graphic_c_DMI_scores}
+```{r ED_Figure1_Graphic_c_ROC_PR_comparisons}
+comparisons <- read_csv("/Users/jesusav/Desktop/RF_testing/Datasets/ROC_PR_RandomForest.csv")
+comparisons <- comparisons %>% mutate(RF=as.factor(RF))
+RF_labs <- c("All",  "IUPred", "IUPred & RLC", "RLC")
+
+p1 <- ggplot(comparisons %>% filter(RF!="Nprop"), aes(x=mean_fpr, y=mean_tpr, color=RF)) +  geom_line(size=1) + 
+  xlab("1 - Specificity") + ylab("Sensitivity") + 
+  theme_classic() + 
+  theme(text = element_text(size = 25), axis.text = element_text(color = "black"), 
+        axis.ticks = element_line(color = "black")) + 
+  labs(color = "Features")  + scale_color_discrete(labels=RF_labs)+
+  scale_x_continuous(breaks=c(0,0.5,1)) + scale_y_continuous(breaks=c(0,0.5,1)) 
+p1
+
+#SAVE PDF
+pdf("/Users/jesusav/Desktop/RF_testing/Plots/RF_comparison_ROC.pdf", width=6.5, height=4)
+p1
+dev.off()
+
+p2 <- ggplot(comparisons %>% filter(RF!="Nprop"), aes(x=mean_recall, y=mean_precision, color=RF)) +  geom_line(size=1) +
+  xlab("Recall") + ylab("Precision") + 
+  theme_classic() + 
+  theme(text = element_text(size = 25), axis.text = element_text(color = "black"), 
+        axis.ticks = element_line(color = "black")) + 
+  labs(color = "Features") + scale_color_discrete(labels=RF_labs) +
+  scale_x_continuous(breaks=c(0,0.5,1)) 
+p2
+
+#SAVE PDF
+pdf("/Users/jesusav/Desktop/RF_testing/Plots/RF_comparison_PRC.pdf", width=6.5, height=4)
+p2
+dev.off()
+```
+
+```{r ED_Figure1_Graphic_d_ROC_PR_holdouts}
+holdouts <- read_csv("/Users/jesusav/Desktop/RF_testing/Datasets/ROC_PR_Holdouts.csv")
+holdouts <- holdouts %>% mutate(RF=as.factor(RF))
+RF_labs <- c("Complements", "Intersect")
+
+p1 <- ggplot(holdouts , aes(x=mean_fpr, y=mean_tpr, color=RF)) +  geom_line(size=1) + 
+  #annotate(geom="text", label=c("Complements AUC = 0.92", "Intersect AUC = 0.92"), x=0.3, y=c(0.1,0.04), hjust=0, size=4, color="black") +
+  xlab("1 - Specificity") + ylab("Sensitivity") + 
+  theme_classic() + scale_color_discrete(labels=RF_labs) +
+  theme(text = element_text(size = 25), axis.text = element_text(color = "black"), 
+        axis.ticks = element_line(color = "black")) + 
+  labs(color = "Sets")  + 
+  scale_x_continuous(breaks=c(0,0.5,1)) + scale_y_continuous(breaks=c(0,0.5,1)) 
+p1
+
+#SAVE PDF
+pdf("/Users/jesusav/Desktop/RF_testing/Plots/RF_holdouts_ROC.pdf", width=6.5, height=4)
+p1
+dev.off()
+
+p2 <- ggplot(holdouts , aes(x=mean_recall, y=mean_precision, color=RF)) +  geom_line(size=1) +
+  #annotate(geom="text", label=c("Complements AP = 0.88", "Intersect AP = 0.94"), x=0.1, y=c(0.4,0.35), hjust=0, size=4, color="black") +
+  xlab("Recall") + ylab("Precision") + 
+  theme_classic() + 
+  theme(text = element_text(size = 25), axis.text = element_text(color = "black"), 
+        axis.ticks = element_line(color = "black")) + 
+  labs(color = "Sets") + scale_color_discrete(labels=RF_labs) +
+  scale_x_continuous(breaks=c(0,0.5,1)) 
+p2
+
+#SAVE PDF
+pdf("/Users/jesusav/Desktop/RF_testing/Plots/RF_holdouts_PRC.pdf", width=6.5, height=4)
+p2
+dev.off()
+```
+
+```{r ED_Figure1_Graphic_e_DMI_scores}
 
 coeff <-  max(DMIscores_count$count_ppi) /max(DMIscores_count$count_dmi)
 
@@ -1323,17 +1447,17 @@ p1 <- ggplot(DMIscores_count, aes(x=bin)) +  geom_line( aes(y=count_dmi), size=1
   geom_vline(xintercept = 0.7, size=0.5, color="red") + 
   ggtitle("HuRI DMI scores") + xlab("DMI score") +
   theme_classic() + 
-  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), axis.ticks = element_line(linewidth = 1))+ 
+  theme(text = element_text(size = 20), axis.text = element_text(color = "black"), 
+        axis.ticks = element_line(linewidth = 1, color = "black"))+ 
   scale_y_continuous(labels = scales::comma, , limits = c(0,150000), name = "DMI count", sec.axis = sec_axis(~.*coeff, name="PPI count"))
 
 p1
 # SAVE TIFF
-tiff("Figures/ExtendedData_Figures/DMIScore_cummulative_DMI_PPI.tiff", units="cm", width=12, height=8, res=800)
+tiff("Figures/ExtendedFigure_1/DMIScore_cummulative_DMI_PPI.tiff", units="cm", width=12, height=8, res=800)
 p1
 dev.off()
-
 # SAVE PDF
-pdf("Figures/ExtendedData_Figures/DMIScore_cummulative_DMI_PPI.pdf", width=5, height=3)
+pdf("Figures/ExtendedFigure_1/DMIScore_cummulative_DMI_PPI.pdf", width=cm2in(12), height=cm2in(8))
 p1
 dev.off()
 
@@ -1342,7 +1466,9 @@ p2 <- ggplot(DMIscores_count, aes(x=bin, y=count_dmi)) +  geom_line() +
   annotate(geom="text", label="0.7", x=0.78, y=140000, size=5, color="red")+ 
   geom_vline(xintercept = 0.7, size=0.5, color="red") + 
   ggtitle("HuRI DMI scores") + xlab("RF score") + ylab("DMI count") + 
-  theme_classic() + theme(text = element_text(size = 20), axis.line = element_line(size = 1), axis.text = element_text(color = "black"), axis.ticks = element_line(linewidth = 1)) + 
+  theme_classic() + 
+  theme(text = element_text(size = 20), axis.line = element_line(size = 1), 
+        axis.text = element_text(color = "black"), axis.ticks = element_line(linewidth = 1, color = "black")) + 
   scale_y_continuous(labels = scales::comma, limits = c(0,150000)) 
 
 p2 + geom_point() +
@@ -1354,7 +1480,9 @@ p3 <- ggplot(DMIscores_count, aes(x=bin, y=count_ppi)) +  geom_line() +
   annotate(geom="text", label="0.7", x=0.78, y=8000, size=5, color="red")+ 
   geom_vline(xintercept = 0.7, size=0.5, color="red") + 
   ggtitle("HuRI DMI scores") + xlab("RF score") + ylab("PPI count") + 
-  theme_classic() + theme(text = element_text(size = 20), axis.line = element_line(size = 1), axis.text = element_text(color = "black"), axis.ticks = element_line(linewidth = 1))+ 
+  theme_classic() + 
+  theme(text = element_text(size = 20), axis.line = element_line(size = 1), 
+        axis.text = element_text(color = "black"), axis.ticks = element_line(linewidth = 1, color = "black"))+ 
   scale_y_continuous(labels = scales::comma) 
 
 p3 + geom_point() +
@@ -1365,20 +1493,126 @@ p3 + geom_point() +
 
 ```
 
-```{r ED_Figure1_Graphic_d_DMI_scores_categories}
+```{r ED_Figure1_Data_f_Multivalency_categories}
+HuRI_mult <- HuRI_DMIs %>% count(intx_ID, Accession, DomainID1)  %>% rename(DMI_n=n) %>% 
+  group_by(intx_ID, DomainID1) %>% summarise(M_n=length(Accession), D_DMI_n=sum(DMI_n)) %>% ungroup()  %>% 
+  group_by(intx_ID) %>% summarise(D_n=length(DomainID1), D_M_n=sum(M_n), DM_DMI_n=sum(D_DMI_n)) %>% ungroup() %>% 
+  arrange(-D_n, -DM_DMI_n)
+
+
+HuRI_mult_hq <- HuRI_DMIs %>% filter(DMIMatchScore>=0.7) %>% 
+  count(intx_ID, Accession, DomainID1)  %>% rename(DMI_n=n) %>% 
+  group_by(intx_ID, DomainID1) %>% summarise(M_n=length(Accession), D_DMI_n=sum(DMI_n)) %>% ungroup()  %>% 
+  group_by(intx_ID) %>% summarise(D_n=length(DomainID1), D_M_n=sum(M_n), DM_DMI_n=sum(D_DMI_n)) %>% ungroup() %>% 
+  arrange(-D_n, -DM_DMI_n)
+
+HuRI_mult %>% filter(DM_DMI_n==1) #1,787 PPIs 20.1%, 1,787 DMIs 1,2%  
+HuRI_mult %>% filter(DM_DMI_n>1 & D_M_n==1) %>% select(DM_DMI_n) %>% sum() # 1,353 PPIs 15.89%, 6,044 DMIs 4.39% 
+HuRI_mult %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n==1) %>% select(DM_DMI_n) %>% sum() # 
+# 3,077 PPIs are mediated by multiple DMIs, from multiple motifs but from a single domain type 36.15% of PPIs, 33,230 DMIs 24%
+HuRI_mult %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n==2) %>% select(DM_DMI_n) %>% sum() # 2,083 PPIs 24.47%,85,959 DMIs 62.38%
+HuRI_mult %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n>2) %>% select(DM_DMI_n) %>% sum() # 211 PPIs 2.47%, 10,760 DMIs 7.8%
+
+HuRI_mult_table <- tibble(category=c("1D_1M_1DMI", "1D_1M_mDMI", "1D_mM_mDMI","2D_mM_mDMI","mD_mM_mDMI"),
+                          PPI_all=c(HuRI_mult %>% filter(DM_DMI_n==1) %>% nrow(),
+                                HuRI_mult %>% filter(DM_DMI_n>1 & D_M_n==1) %>% nrow(),
+                                HuRI_mult %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n==1) %>% nrow(),
+                                HuRI_mult %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n==2) %>% nrow(),
+                                HuRI_mult %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n>2) %>% nrow()),
+                          
+                          DMI_all=c(HuRI_mult %>% filter(DM_DMI_n==1) %>% select(DM_DMI_n) %>% sum(),
+                                HuRI_mult %>% filter(DM_DMI_n>1 & D_M_n==1) %>% select(DM_DMI_n) %>% sum(),
+                                HuRI_mult %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n==1) %>% select(DM_DMI_n) %>% sum(),
+                                HuRI_mult %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n==2)%>% select(DM_DMI_n) %>% sum(),
+                                HuRI_mult %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n>2) %>% select(DM_DMI_n) %>% sum()),
+                          
+                          PPI_hq=c(HuRI_mult_hq %>% filter(DM_DMI_n==1) %>% nrow(),
+                                HuRI_mult_hq %>% filter(DM_DMI_n>1 & D_M_n==1) %>% nrow(),
+                                HuRI_mult_hq %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n==1) %>% nrow(),
+                                HuRI_mult_hq %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n==2) %>% nrow(),
+                                HuRI_mult_hq %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n>2) %>% nrow()),
+                          
+                          DMI_hq=c(HuRI_mult_hq %>% filter(DM_DMI_n==1) %>% select(DM_DMI_n) %>% sum(),
+                                HuRI_mult_hq %>% filter(DM_DMI_n>1 & D_M_n==1) %>% select(DM_DMI_n) %>% sum(),
+                                HuRI_mult_hq %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n==1) %>% select(DM_DMI_n) %>% sum(),
+                                HuRI_mult_hq %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n==2)%>% select(DM_DMI_n) %>% sum(),
+                                HuRI_mult_hq %>% filter(DM_DMI_n>1 & D_M_n>1 & D_n>2) %>% select(DM_DMI_n) %>% sum()
+                                ))
+HuRI_mult_table
+
+HuRI_mult_table_ln <- HuRI_mult_table %>% 
+  mutate(PPI_lq=PPI_all-PPI_hq, DMI_lq=DMI_all-DMI_hq) %>% select(-PPI_all, -DMI_all) %>%
+  pivot_longer(cols = PPI_hq:DMI_lq, names_to = c("type"), values_to = "number") %>% 
+  separate(type, c("c_type", "quality"), sep="_") %>%
+  pivot_wider(names_from=c("c_type"), values_from = number)
+
+HuRI_mult_table_ln
+```
+
+```{r ED_Figure1_Graphic_f_Multivalency_categories_piegraph}
+p1 <- ggplot(HuRI_mult_table, aes(x="", y=PPI_all, fill=category)) +
+  geom_bar(stat="identity", width=1) +
+  scale_fill_manual(values=colors_blues) +
+  coord_polar("y", start=0) + theme_void() + theme(legend.position="none")
+p1
+
+#SAVE PDF
+pdf("/Users/jesusav/Desktop/DMIs_combinations_PPIs.pdf", width=4, height=4)
+p1
+dev.off()
+
+p2 <- ggplot(HuRI_mult_table, aes(x="", y=DMI_all, fill=category)) +
+  geom_bar(stat="identity", width=1) +
+  scale_fill_manual(values=colors_blues) +
+  coord_polar("y", start=0) + theme_void() + theme(legend.position="none")
+p2
+
+#SAVE PDF
+pdf("/Users/jesusav/Desktop/DMIs_combinations_DMIs.pdf", width=4, height=4)
+p2
+dev.off()
+
+p1 <- ggplot(HuRI_mult_table, aes(x="", y=PPI_hq, fill=category)) +
+  geom_bar(stat="identity", width=1) +
+  scale_fill_manual(values=c(colors_blues[1:4], "#006AB4")) +
+  coord_polar("y", start=0) + theme_void() + theme(legend.position="none")
+p1
+
+#SAVE PDF
+pdf("/Users/jesusav/Desktop/DMIs_combinations_PPIs_hq.pdf", width=4, height=4)
+p1
+dev.off()
+
+p2 <- ggplot(HuRI_mult_table, aes(x="", y=DMI_hq, fill=category)) +
+  geom_bar(stat="identity", width=1) +
+  scale_fill_manual(values=colors_blues) +
+  coord_polar("y", start=0) + theme_void() + theme(legend.position="none")
+p2
+
+#SAVE PDF
+pdf("/Users/jesusav/Desktop/DMIs_combinations_DMIs_hq.pdf", width=4, height=4)
+p2
+dev.off()
+
+(HuRI_mult_table$PPI_hq)/sum(HuRI_mult_table$PPI_hq)
+(HuRI_mult_table$DMI_hq)/sum(HuRI_mult_table$DMI_hq)
+```
+
+```{r ED_Figure1_Graphic_g_DMI_scores_categories}
 p1 <- ggplot(HuRI_DMIs, aes(x=DMIMatchScore, y = ELM_type, color = ELM_type)) + geom_quasirandom(size=0.1, alpha=0.5) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
   geom_boxplot(color="black", width=0.15, lwd=0.4, alpha=0.75, outlier.size = 1, outlier.alpha = 0.5) + 
   geom_vline(xintercept = 0.7, color="red") +
   ylab("Motif category") + xlab("DMI score") + 
   scale_color_manual(values=colors_ELMtypes) +
-  theme_classic() + theme(text = element_text(size = 18), legend.position="none", 
-                          axis.text = element_text(color = "black"),axis.ticks = element_line(linewidth = 1))+ 
+  theme_classic() + 
+  theme(text = element_text(size = 18), legend.position="none", 
+        axis.text = element_text(color = "black"),axis.ticks = element_line(linewidth = 1, color = "black"))+ 
   scale_y_discrete(limits=rev, labels = rev(elm_categories)) +
   scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) 
 p1
 
 #SAVE png
-png("Figures/SuppFig_DMI_HuRI_graphics/HuRI_DMI_Scores.png", units="cm", width=11, height=8, res=800)
+png("Figures/ExtendedFigure_1/HuRI_DMI_Scores.png", units="cm", width=11, height=8, res=800)
 p1
 dev.off()
 # SAVE PDF
@@ -1387,7 +1621,7 @@ dev.off()
 # dev.off()
 ```
 
-```{r ED_Figure1_Graphic_e_DMI_classes_categories}
+```{r ED_Figure1_Graphic_h_DMI_classes_categories}
 HuRI_DMI_classes <- HuRI_DMIs %>% select(Accession, ELM_class, ELM_type) %>% unique()
 HuRI_DMI_classes_high <- HuRI_DMIs %>% filter(DMIMatchScore >= 0.7) %>% select(Accession, ELM_class, ELM_type) %>% unique()
 HuRI_DMI_classes <- HuRI_DMI_classes %>% mutate(HighScored=case_when(Accession %in% HuRI_DMI_classes_high$Accession ~ "1", TRUE ~ "0"))
@@ -1408,18 +1642,18 @@ p1 + geom_text(aes(label = ..count..), stat = "count", vjust = -0.1,hjust= 1, po
   geom_text(stat='prop', vjust=-0.1, hjust= -0.1, position = position_fill(0.25), size=3) 
 
 # SAVE TIFF
-tiff("Figures/ExtendedData_Figures/HuRI_DMI_highScore_Classes_fraction.tiff", units="cm", width=11, height=8, res=800)
+tiff("Figures/ExtendedFigure_1/HuRI_DMI_highScore_Classes_fraction.tiff", units="cm", width=11, height=8, res=800)
 p1
 dev.off()
 
 # SAVE PDF
-pdf("Figures/ExtendedData_Figures/HuRI_DMI_highScore_Classes_fraction.pdf", width=5, height=3)
+pdf("Figures/ExtendedFigure_1/HuRI_DMI_highScore_Classes_fraction.pdf", width=5, height=3)
 p2
 dev.off()
 
 ```
 
-```{r ED_Figure1_Graphic_f_DMI_known_instances}
+```{r ED_Figure1_Graphic_i_DMI_known_instances}
 p1 <- ggplot(DMI_ELM_instances, aes(y=DMIMatchScore, x = ELM_instance, color = ELM_instance)) + geom_quasirandom(size=1, alpha=0.75) + 
   geom_boxplot(color = "black", width = 0.15, lwd = 0.4, alpha = 0.75, outlier.size = 1, outlier.alpha = 0.5) + 
   ggtitle("HuRi DMIs - ELM") +  xlab("Known DMI instance") + ylab("DMI score") + 
@@ -1429,7 +1663,7 @@ p1 <- ggplot(DMI_ELM_instances, aes(y=DMIMatchScore, x = ELM_instance, color = E
 p1
 
 # SAVE png
-png("Figures/ExtendedData_Figures/Supp_HuRI_DMI_scores_instances.png", units="cm", width=8, height=8, res=800)
+png("Figures/ExtendedFigure_1/Supp_HuRI_DMI_scores_instances.png", units="cm", width=8, height=8, res=800)
 p1
 dev.off()
 
@@ -1442,7 +1676,7 @@ p1 <- ggplot(DMI_ELM_instances, aes(y=DMIMatchScore, x = ELM_motif, color = ELM_
 p1
 ```
 
-```{r ED_Figure1_Graphic_g_DMI_ClinVar_overlaps}
+```{r ED_Figure1_Graphic_j_DMI_ClinVar_overlaps}
 
 p1 <- ggplot(HURI_ClinVar_DMI_mut_count_DMI_long, aes(y=pathogenicity, fill=pathogenicity)) + 
   geom_bar( width = 0.5) +
@@ -1456,11 +1690,11 @@ p1
 p1 +  geom_text(aes(label = ..count..), stat = "count", vjust = -1, position = position_dodge(0.9), size = 3.5)
 
 # SAVE TIFF
-tiff("Figures/ExtendedData_Figures/HuRI_DMIs_OneMutation.tiff", units="cm", width=11, height=8, res=800)
+tiff("Figures/ExtendedFigure_1/HuRI_DMIs_OneMutation.tiff", units="cm", width=11, height=8, res=800)
 p1
 dev.off()
 # SAVE PDF
-pdf("Figures/ExtendedData_Figures/HuRI_DMIs_OneMutation.pdf", width=cm2in(11), height=cm2in(8))
+pdf("Figures/ExtendedFigure_1/HuRI_DMIs_OneMutation.pdf", width=cm2in(11), height=cm2in(8))
 p1
 dev.off()
 
@@ -1484,18 +1718,18 @@ p2
 p2 +  geom_text(aes(label = ..count..), stat = "count", vjust = -1, position = position_dodge(0.9), size = 3.5)
 
 # SAVE TIFF
-tiff("Figures/ExtendedData_Figures/HuRI_PPIs_OneMutation.tiff", units="cm", width=11, height=8, res=800)
+tiff("Figures/ExtendedFigure_1/HuRI_PPIs_OneMutation.tiff", units="cm", width=11, height=8, res=800)
 p2
 dev.off()
 
 # SAVE PDF
-pdf("Figures/ExtendedData_Figures/HuRI_PPIs_OneMutation.pdf", width=cm2in(11), height=cm2in(8))
+pdf("Figures/ExtendedFigure_1/HuRI_PPIs_OneMutation.pdf", width=cm2in(11), height=cm2in(8))
 p2
 dev.off()
 
 ```
 
-```{r ED_Figure1_Graphic_h_DMI_ClinVar_motif_categories}
+```{r ED_Figure1_Graphic_k_DMI_ClinVar_motif_categories}
 #DMI - Motif variants
 
 p1 <- ggplot(HURI_ClinVar_mut_motif, aes(y=ELM_type , fill=pathogenicity)) + 
@@ -1512,12 +1746,12 @@ p1 +geom_text(aes(label = ..count..), stat = "count", vjust = -0.1,hjust= 1, pos
   geom_text(stat='prop', vjust=-0.1, hjust= -0.1, position = position_fill(0.25), size=3) 
 
 # SAVE TIFF
-tiff("Figures/ExtendedData_Figures/HuRI_human_ClinVar_mutations_ELM.tiff", units="cm", width=11, height=8, res=800)
+tiff("Figures/ExtendedFigure_1/HuRI_human_ClinVar_mutations_ELM.tiff", units="cm", width=11, height=8, res=800)
 p1
 dev.off()
 
 # SAVE PDF
-pdf("Figures/ExtendedData_Figures/HuRI_human_ClinVar_mutations_ELM.pdf", width=8, height=4)
+pdf("Figures/ExtendedFigure_1/HuRI_human_ClinVar_mutations_ELM.pdf", width=8, height=4)
 p1
 dev.off()
 
@@ -1533,10 +1767,11 @@ legend_t_size <- 15
 legend_t_vjust <- 3
 legend_tx_size <- 13
   
-p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="CTBP1"), aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_bret50  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("CTBP1 mutants") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="CTBP1"), 
+             aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=maxBRET_Log2_FChng)) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4, 4), na.value = "grey80")+
+  xlab("CTBP1 mutants") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_text(hjust=0.3),
@@ -1548,37 +1783,17 @@ p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="CTBP1"), aes(fct_reorder(canonic
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill =colors_BRET )))
 p1
-
-p2 <- ggplot(domain_BRET %>% filter(NL_symbol=="CTBP1"),aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_cBRET )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("CTBP1 mutants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_text(hjust=0.3),
-        axis.text.x = element_text(angle = 30, vjust = 1, hjust=1), plot.title = element_blank(),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev)  + 
-  facet_grid2(category~., scales = "free_y", switch = "y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill =colors_BRET ))) + 
-    guides(colour = guide_legend(title.position = "left"))
-p2 
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/DomainValidation_CTBP1_BRET50.tiff", units="cm", width=12, height=8, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/DomainValidation_CTBP1_FC_maxBRET.pdf", width=cm2in(12), height=cm2in(8))
 p1
 dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/DomainValidation_CTBP1_maxBRET.tiff", units="cm", width=12.3, height=8, res=800)
-p2
-dev.off()
 
 
-p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="SPOP"), aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_bret50  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("SPOP mutants") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="SPOP"), 
+             aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=maxBRET_Log2_FChng)) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4, 4), na.value = "grey80")+
+  xlab("SPOP mutants") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_text(hjust=0.5),
@@ -1590,37 +1805,18 @@ p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="SPOP"), aes(fct_reorder(canonica
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill =colors_BRET[2:3] ))) 
 p1
-
-p2 <- ggplot(domain_BRET %>% filter(NL_symbol=="SPOP"), aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_cBRET  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("SPOP mutants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_text(hjust=0.5),
-        axis.text.x = element_text(angle = 30, vjust = 1, hjust=1), plot.title = element_blank(),
-        legend.key.height= unit(0.5, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev)+ 
-  facet_grid2(category~., scales = "free_y", switch = "y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill =colors_BRET[2:3] ))) 
-p2
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/DomainValidation_SPOP_BRET50.tiff", units="cm", width=10, height=7.5, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/DomainValidation_SPOP_FC_maxBRET.pdf", width=cm2in(10.3), height=cm2in(7.5))
 p1
 dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/DomainValidation_SPOP_maxBRET.tiff", units="cm", width=10.3, height=7.5, res=800)
-p2
-dev.off()
 
 
 
-p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="WWOX"), aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_bret50  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("WWOX mutants") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="WWOX"), 
+             aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=maxBRET_Log2_FChng)) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4, 4), na.value = "grey80")+
+  xlab("WWOX mutants") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_text(hjust=0.3),
@@ -1632,51 +1828,16 @@ p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="WWOX"), aes(fct_reorder(canonica
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill =colors_BRET )))
 p1
-
-p2 <- ggplot(domain_BRET %>% filter(NL_symbol=="WWOX"), aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_cBRET  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("WWOX mutants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_text(hjust=0.3),
-        axis.text.x = element_text(angle = 30, vjust = 1, hjust=1), plot.title = element_blank(),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev)+ 
-  facet_grid2(category~., scales = "free_y", switch = "y",space = "free_y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill =colors_BRET )))
-p2
-
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/DomainValidation_WWOX_BRET50.tiff", units="cm", width=11, height=11, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/DomainValidation_WWOX_FC_maxBRET.pdf", width=cm2in(11.3), height=cm2in(11))
 p1
 dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/DomainValidation_WWOX_maxBRET.tiff", units="cm", width=11.3, height=11, res=800)
-p2
-dev.off()
 
-
-p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="PPP3CA"), aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_bret50)) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("PPP3CA mutants") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_text(hjust=0.8),
-        axis.text.x = element_text(angle = 30, vjust = 1, hjust=1), plot.title = element_blank(),
-        legend.key.height= unit(0.5, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev)+ 
-  facet_grid2(category~., scales = "free_y", switch = "y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill =colors_BRET[c(1,3)] )))
-p2 <- ggplot(domain_BRET %>% filter(NL_symbol=="PPP3CA"), aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_cBRET)) + 
+p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="PPP3CA"), 
+             aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=maxBRET_Log2_FChng)) + 
   geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("PPP3CA mutants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4, 4), na.value = "grey80")+
+  xlab("PPP3CA mutants") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_text(hjust=0.8),
@@ -1688,23 +1849,17 @@ p2 <- ggplot(domain_BRET %>% filter(NL_symbol=="PPP3CA"), aes(fct_reorder(canoni
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill =colors_BRET[c(1,3)] )))
 p1
-p2
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/DomainValidation_PPP3CA_BRET50.tiff", units="cm", width=10.5, height=7.5, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/DomainValidation_PP3CA_FC_maxBRET.pdf", width=cm2in(10.8), height=cm2in(7.5))
 p1
 dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/DomainValidation_PPP3CA_maxBRET.tiff", units="cm", width=10.8, height=7.5, res=800)
-p2
-dev.off()
-
 
 
 p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="IQCB1") %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")) , 
-             aes(NL_symbol, label, fill=tstat_bret50)) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+             aes(NL_symbol, label, fill=maxBRET_Log2_FChng)) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4, 4), na.value = "grey80")+
+  theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_blank(),
@@ -1715,31 +1870,10 @@ p1 <- ggplot(domain_BRET %>% filter(NL_symbol=="IQCB1") %>% mutate(label=paste(g
   facet_grid2(category~., scales = "free_y", switch = "y", space = "free_y",
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill = colors_BRET[2:3] )))
-
-p2 <- ggplot(domain_BRET %>% filter(NL_symbol=="IQCB1") %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")) , 
-             aes( NL_symbol, label,fill=tstat_cBRET)) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_blank(),
-        plot.title = element_blank(),
-        legend.key.height= unit(0.5, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev)+ 
-  facet_grid2(category~., scales = "free_y", switch = "y",space = "free_y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill = colors_BRET[2:3] )))
 p1
-p2
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/DomainValidation_IQCB1_BRET50.tiff", units="cm", width=8.5, height=5.5, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/DomainValidation_IQCB1_FC_maxBRET.pdf", width=cm2in(8.8), height=cm2in(5.5))
 p1
-dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/DomainValidation_IQCB1_maxBRET.tiff", units="cm", width=8.8, height=5.5, res=800)
-p2
 dev.off()
 
 
@@ -1752,19 +1886,11 @@ legend_t_size <- 15
 legend_t_vjust <- 3
 legend_tx_size <- 13
 
-theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_text(hjust=0.3),
-        axis.text.x = element_text(angle = 30, vjust = 1, hjust=1), plot.title = element_blank(),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-
 p1 <- ggplot(motif_BRET %>% filter(NL_symbol=="CTBP1") %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol, fct_reorder2(label, as.numeric(residue), desc(mCit_symbol)), fill=tstat_bret50)) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif deletions") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+             aes(NL_symbol, fct_reorder2(label, as.numeric(residue), desc(mCit_symbol)), fill=maxBRET_Log2_FChng)) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  ylab("Motif deletions") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.x=element_blank(), 
@@ -1776,39 +1902,18 @@ p1 <- ggplot(motif_BRET %>% filter(NL_symbol=="CTBP1") %>% mutate(label=paste(ge
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill =colors_BRET[2:3] ))) 
 
-p2 <- ggplot(motif_BRET %>% filter(NL_symbol=="CTBP1") %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol, fct_reorder2(label, as.numeric(residue), desc(mCit_symbol)), fill=tstat_cBRET)) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif deletions") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(),  
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.x=element_blank(),
-        plot.title=element_text(size=12, hjust=0.95),
-        legend.key.height= unit(0.5, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev)+ 
-  facet_grid2(category~., scales = "free_y", switch = "y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill =colors_BRET[2:3] ))) 
-
 p1
-p2
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_CTBP1_BRET50.tiff", units="cm", width=10, height=5.5, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/MotifValidation_CTBP1_FC_maxBRET.pdf", width=cm2in(10.3), height=cm2in(5.5))
 p1
-dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_CTBP1_maxBRET.tiff", units="cm", width=10.3, height=5.5, res=800)
-p2
 dev.off()
 
 
 p1 <- ggplot(motif_BRET %>% filter(NL_symbol=="SPOP") %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol, fct_reorder(label, residue), fill=tstat_bret50)) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif deletions") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+             aes(NL_symbol, fct_reorder(label, residue), fill=maxBRET_Log2_FChng)) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  ylab("Motif deletions") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.x=element_blank(), 
@@ -1819,38 +1924,18 @@ p1 <- ggplot(motif_BRET %>% filter(NL_symbol=="SPOP") %>% mutate(label=paste(gen
   facet_grid2(category~., scales = "free_y", switch = "y", space = "free_y",
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill =colors_BRET[2:3] )))
-
-p2 <- ggplot(motif_BRET %>% filter(NL_symbol=="SPOP") %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes( NL_symbol, fct_reorder(label, residue), fill=tstat_cBRET  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif deletions") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(),  
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.x=element_blank(),
-        plot.title=element_text(size=12, hjust=0.95),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev)+ 
-  facet_grid2(category~., scales = "free_y", switch = "y", space = "free_y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill =colors_BRET[2:3] )))
 p1
-p2
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_SPOP_BRET50.tiff", units="cm", width=10, height=11, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/MotifValidation_SPOP_FC_maxBRET.pdf", width=cm2in(10.3), height=cm2in(11))
 p1
-dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_SPOP_maxBRET.tiff", units="cm", width=10.3, height=11, res=800)
-p2
 dev.off()
 
 
 p1 <- ggplot(motif_BRET %>% filter(NL_symbol=="WWOX") %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes( NL_symbol, fct_reorder(label, residue), fill=tstat_bret50  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif mutations") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+             aes( NL_symbol, fct_reorder(label, residue), fill=maxBRET_Log2_FChng  )) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  ylab("Motif mutations") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.x=element_blank(), 
@@ -1862,80 +1947,40 @@ p1 <- ggplot(motif_BRET %>% filter(NL_symbol=="WWOX") %>% mutate(label=paste(gen
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill =colors_BRET[2:3] )))
 
-p2 <- ggplot(motif_BRET %>% filter(NL_symbol=="WWOX") %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes( NL_symbol, fct_reorder(label, residue), fill=tstat_cBRET  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif mutations") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(),  
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.x=element_blank(),
-        plot.title=element_text(size=12, hjust=0.95),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev) + 
-  facet_grid2(category~., scales = "free_y", switch = "y", space = "free_y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill =colors_BRET[2:3] ))) 
+p1
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/MotifValidation_WWOX_FC_maxBRET.pdf", width=cm2in(10.3), height=cm2in(16))
+p1
+dev.off()
 
-p1
-p2
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_WWOX_BRET50.tiff", units="cm", width=10, height=16, res=800)
-p1
-dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_WWOX_maxBRET.tiff", units="cm", width=10.3, height=16, res=800)
-p2
-dev.off()
 
 p1 <- ggplot(motif_BRET %>% filter(NL_symbol=="WWOX") %>% filter(!(mCit_symbol=="LITAF" & residue>20)) %>%
                mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol,  fct_reorder(label, residue), fill=tstat_bret50  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif deletions") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+             aes(fct_reorder(label, residue), NL_symbol,  fill=maxBRET_Log2_FChng  )) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  xlab("Motif deletions") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.x=element_blank(),
-        axis.text.x = element_text(), plot.title=element_blank(),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  facet_grid2(category~., scales = "free_y", switch = "y", space="free",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill =colors_BRET[2:3]  )))
+        axis.ticks = element_line(size = 0), axis.title.y=element_blank(),
+        axis.text.x = element_text(angle = 30, vjust = 1.1, hjust=1), plot.title=element_blank(),
+        legend.position = "none") +
+  facet_grid2(.~category, scales = "free_x", switch = "x", space="free",
+                 strip = strip_themed(text_x = element_text(size=0),
+                                     background_x = elem_list_rect( fill =colors_BRET[2:3]  )))
 
-p2 <- ggplot(motif_BRET %>% filter(NL_symbol=="WWOX") %>% filter(!(mCit_symbol=="LITAF" & residue>20)) %>%
-               mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol,  fct_reorder(label, residue), fill=tstat_cBRET  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif deletions") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.x=element_blank(),
-        axis.text.x = element_text(), plot.title=element_blank(),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  facet_grid2(category~., scales = "free_y", switch = "y", space="free",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill =colors_BRET[2:3]  )))
 p1
-p2
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_WWOX_BRET50_deletions.tiff", units="cm", width=9.7, height=9, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/MotifValidation_WWOX_FC_maxBRET_deletions.pdf", width=cm2in(13), height=cm2in(7))
 p1
 dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_WWOX_maxBRET_deletions.tiff", units="cm", width=10, height=9, res=800)
-p2
-dev.off()
 
 
-p2 <- ggplot(motif_BRET %>% filter(NL_symbol=="WWOX") %>% filter(mCit_symbol=="LITAF" & residue>20) , 
-             aes(NL_symbol, fct_reorder(canonical_mutation, residue),  fill=tstat_cBRET  )) + 
+p1 <- ggplot(motif_BRET %>% filter(NL_symbol=="WWOX") %>% filter(mCit_symbol=="LITAF" & residue>20) , 
+             aes(NL_symbol, fct_reorder(canonical_mutation, residue),  fill=maxBRET_Log2_FChng  )) + 
   geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("LITAF mutations") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  ylab("LITAF mutations") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(),  
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.x=element_blank(),
@@ -1947,19 +1992,18 @@ p2 <- ggplot(motif_BRET %>% filter(NL_symbol=="WWOX") %>% filter(mCit_symbol=="L
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill =colors_BRET[2:3] ))) 
 
-p2
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_WWOX_maxBRET_LITAF.tiff", units="cm", width=8.8, height=9, res=800)
-p2
+p1
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/MotifValidation_WWOX_FC_maxBRET_LITAF.pdf", width=cm2in(8.8), height=cm2in(9))
+p1
 dev.off()
-
 
 p1 <- ggplot(motif_BRET %>% filter(NL_symbol=="IQCB1") %>% 
                mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(label, fct_reorder(fct_reorder2(mCit_symbol, residue, mCit_symbol), residue), fill=tstat_bret50)) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+             aes(label, fct_reorder(fct_reorder2(mCit_symbol, residue, mCit_symbol), residue), fill=maxBRET_Log2_FChng)) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(),
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x=element_blank(),
@@ -1971,34 +2015,15 @@ p1 <- ggplot(motif_BRET %>% filter(NL_symbol=="IQCB1") %>%
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill =colors_BRET )))
 
-p2 <- ggplot(motif_BRET %>% filter(NL_symbol=="IQCB1") %>% 
-               mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")),
-             aes(label, fct_reorder2(mCit_symbol, residue, mCit_symbol), fill=tstat_cBRET)) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x=element_blank(),
-        axis.text.x = element_text(), plot.title=element_blank(),
-        legend.key.height= unit(0.5, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev) + 
-  facet_grid2(category~., scales = "free_y", switch = "y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill =colors_BRET )))
+
 
 p1
-p2
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_IQCB1_BRET50.tiff", units="cm", width=8, height=7.5, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/MotifValidation_IQCB1_FC_maxBRET.pdf", width=cm2in(8.3), height=cm2in(7.5))
 p1
 dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/MotifValidation_IQCB1_maxBRET.tiff", units="cm", width=8.3, height=7.5, res=800)
-p2
-dev.off()
 
+domain_BRET %>% filter(NL_symbol=="IQCB1")
 ```
 
 ```{r Figure2_Graph_variants}
@@ -2008,11 +2033,11 @@ legend_t_size <- 15
 legend_t_vjust <- 3
 legend_tx_size <- 13
 
-p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="CTBP1" & motif_variant==TRUE) %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol, fct_reorder2(label, residue, mCit_symbol), fill=tstat_bret50  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif variants") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="CTBP1" & motif_variant==TRUE) %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")),
+             aes(NL_symbol, fct_reorder2(label, residue, mCit_symbol), fill=maxBRET_Log2_FChng  )) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  ylab("Motif variants") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), 
         panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
@@ -2024,75 +2049,41 @@ p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="CTBP1" & motif_variant==TRUE) %
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill ="#999999" )))
 
-p2 <- ggplot(mutants_BRET %>% filter(NL_symbol=="CTBP1" & motif_variant==TRUE) %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol, fct_reorder2(label, residue, mCit_symbol), fill=tstat_cBRET  )) + 
+
+p1
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/VariantTest_CTBP1_motif_FC_maxBRET.pdf", width=cm2in(9.3), height=cm2in(8))
+p1
+dev.off()
+
+p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="SPOP" & domain_variant==TRUE) %>%
+               mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
+             aes(fct_reorder(label, residue), mCit_symbol, fill=maxBRET_Log2_FChng  )) + 
   geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif variants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.x=element_blank(), plot.title=element_blank(),
+        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x=element_blank(), 
+        plot.title=element_text(size=15, hjust=0.95),
         legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
         legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev) + 
-  facet_grid2(ClinVar~., scales = "free_y", switch = "y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill ="#999999" )))
-                  
-grid.arrange(p1, p2,nrow=1, left=textGrob("Motif variants", gp = gpar(fontsize = 20), rot=90 ))
-p1
-p2
-
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_IQCB1_motif_BRET50.tiff", units="cm", width=9, height=8, res=800)
-p1
-dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_IQCB1_motif_maxBRET.tiff", units="cm", width=9.3, height=8, res=800)
-p2
-dev.off()
-
-p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="SPOP" & domain_variant==TRUE), 
-             aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_bret50  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ggtitle("BRET50") +  theme_minimal() + labs(fill = "BRET50\neffect size") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), legend.position = "none",
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x=element_blank(),
-        axis.text.x = element_blank(), plot.title=element_text(size=15, hjust=0.95)) +
-  scale_y_discrete(limits=rev) + 
-  facet_grid2(.~ClinVar, scales = "free_x", switch = "x", space = "free_x",
-                 strip = strip_themed(text_x = element_text(size=0))) 
-
-p2 <- ggplot(mutants_BRET %>% filter(NL_symbol=="SPOP" & domain_variant==TRUE) %>%
-               mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(fct_reorder(label, residue), mCit_symbol, fill=tstat_cBRET  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ggtitle("maxBRET") + theme_minimal() + labs(fill = "maxBRET\neffect size") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), legend.position = "none",
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x=element_blank(), 
-        plot.title=element_text(size=15, hjust=0.95)) +
   scale_y_discrete(limits=rev) + 
   facet_grid2(.~ClinVar, scales = "free_x", switch = "x", space = "free_x",
                  strip = strip_themed(text_x = element_text(size=0),
                                      background_x = elem_list_rect( fill ="#d52221" )))
-
-grid.arrange(p1, p2, nrow=2, bottom=textGrob("SPOP variant", gp = gpar(fontsize = 20)))
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_SPOP_domain.tiff", units="cm", width=5, height=12, res=800)
-grid.arrange(p1, p2, heights=c(2,2.4), nrow=2)
+p1
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/VariantTest_SPOP_FC_maxBRET.pdf", width=cm2in(8.5), height=cm2in(7.5))
+p1
 dev.off()
 
 
 p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & domain_variant==TRUE),
-             aes(fct_reorder(canonical_mutation, residue),mCit_symbol, fill=tstat_bret50  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("WWOX variants") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+             aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=maxBRET_Log2_FChng  )) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  xlab("WWOX variants") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
         axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_text(hjust=0.5),
@@ -2103,41 +2094,19 @@ p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & domain_variant==TRUE),
   facet_grid2(.~ClinVar, scales = "free_x", switch = "x", space = "free_x",
                  strip = strip_themed(text_x = element_text(size=0),
                                      background_x = elem_list_rect( fill =colors_Var[3:4] ))) 
-                 
-p2 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & domain_variant==TRUE), 
-             aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_cBRET  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("WWOX variants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x =  element_text(hjust=0.5),
-        axis.text.x = element_text(angle = 30, vjust = 1, hjust=1), plot.title = element_blank(),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=c("DAZAP2", "CPSF6","LITAF" , "HOXA1","CSNK2B")) + 
-  facet_grid2(.~ClinVar, scales = "free_x", switch = "x", space = "free_x",
-                 strip = strip_themed(text_x = element_text(size=0),
-                                     background_x = elem_list_rect( fill =colors_Var[3:4] )))
-
-grid.arrange(p1, p2, nrow=2, bottom=textGrob("WWOX variants", gp = gpar(fontsize = 20)))
 p1
-p2
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_WWOX_domain_BRET50.tiff", units="cm", width=11, height=9, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/VariantTest_WWOX_domain_FC_maxBRET.pdf", width=cm2in(11.3), height=cm2in(9))
 p1
 dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_WWOX_domain_maxBRET.tiff", units="cm", width=11.3, height=9, res=800)
-p2
-dev.off()
+
 
 
 p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & motif_variant==TRUE) %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol, fct_reorder2(label, residue, mCit_symbol), fill=tstat_bret50  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif variants") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+             aes(NL_symbol, fct_reorder2(label, residue, mCit_symbol), fill=maxBRET_Log2_FChng  )) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  ylab("Motif variants") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), 
         panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
@@ -2148,57 +2117,20 @@ p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & motif_variant==TRUE) %>
   facet_grid2(ClinVar~., scales = "free_y", switch = "y",
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill ="#999999" )))
-
-p2 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & motif_variant==TRUE) %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol, fct_reorder2(label, residue, mCit_symbol), fill=tstat_cBRET  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif variants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), 
-        panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.x=element_blank(), plot.title=element_blank(),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  facet_grid2(ClinVar~., scales = "free_y", switch = "y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill ="#999999" )))
 p1
-p2
-
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_WWOX_motif_BRET50.tiff", units="cm", width=9, height=12, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/VariantTest_WWOX_motif_FC_maxBRET.pdf", width=cm2in(9.3), height=cm2in(12))
 p1
 dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_WWOX_motif_maxBRET.tiff", units="cm", width=9.3, height=12, res=800)
-p2
-dev.off()
+
 
 
 p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & motif_variant==TRUE) %>% 
                filter(!(mCit_symbol=="LITAF" & residue>20)) %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol, fct_reorder2(label, residue, mCit_symbol), fill=tstat_bret50  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif variants") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
-  theme(text = element_text(size = 20), 
-        panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.x=element_blank(), plot.title=element_blank(),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev) + 
-  facet_grid2(ClinVar~., scales = "free_y", switch = "y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill ="#999999" )))
-
-p2 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & motif_variant==TRUE) %>% 
-               filter(!(mCit_symbol=="LITAF" & residue>20)) %>% mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol, fct_reorder2(label, residue, mCit_symbol), fill=tstat_cBRET  )) + 
+             aes(NL_symbol, fct_reorder2(label, residue, mCit_symbol), fill=maxBRET_Log2_FChng  )) + 
   geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Motif variants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  ylab("Motif variants") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), 
         panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
@@ -2209,22 +2141,18 @@ p2 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & motif_variant==TRUE) %>
   facet_grid2(ClinVar~., scales = "free_y", switch = "y",
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill ="#999999" )))
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_WWOX_motif_BRET50_oneLITAF.tiff", units="cm", width=9, height=8, res=800)
+p1
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/VariantTest_WWOX_motif_FC_maxBRET_oneLITAF.pdf", width=cm2in(9.3), height=cm2in(8))
 p1
 dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_WWOX_motif_maxBRET_oneLITAF.tiff", units="cm", width=9.3, height=8, res=800)
-p2
-dev.off()
-
 
 p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & motif_variant==TRUE) %>% 
                filter(mCit_symbol=="LITAF" & residue>20), 
-             aes(NL_symbol, fct_reorder2(canonical_mutation, residue, mCit_symbol), fill=tstat_bret50  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("LITAF variants") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+             aes(NL_symbol, fct_reorder2(canonical_mutation, residue, mCit_symbol), fill=maxBRET_Log2_FChng  )) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  ylab("LITAF variants") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), 
         panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
@@ -2236,87 +2164,20 @@ p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & motif_variant==TRUE) %>
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill ="#999999" )))
 
-p2 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & motif_variant==TRUE) %>% 
-               filter(mCit_symbol=="LITAF" & residue>20) , 
-             aes(NL_symbol, fct_reorder2(canonical_mutation, residue, mCit_symbol), fill=tstat_cBRET  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("LITAF variants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), 
-        panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.x=element_blank(), plot.title=element_blank(),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev)+ 
-  facet_grid2(ClinVar~., scales = "free_y", switch = "y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill ="#999999" )))
-p1
-p2
 
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_WWOX_motif_BRET50_LITAF.tiff", units="cm", width=8.5, height=7, res=800)
+p1
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/VariantTest_WWOX_motif_FC_maxBRET_LITAF.pdf", width=cm2in(8.8), height=cm2in(7))
 p1
 dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_WWOX_motif_maxBRET_LITAF.tiff", units="cm", width=8.8, height=7, res=800)
-p2
-dev.off()
-
-p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & motif_variant==TRUE) %>% 
-               filter(mCit_symbol=="LITAF" & residue>20) %>% mutate(label=canonical_mutation), 
-             aes(NL_symbol, fct_reorder2(label, residue, mCit_symbol), fill=tstat_bret50  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ggtitle("BRET50") +  theme_minimal() + labs(fill = "BRET50\neffect size") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), legend.position = "none",
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x=element_blank(), 
-        plot.title=element_text(size=15, hjust=0.95)) +
-  scale_y_discrete(limits=rev) + 
-  facet_grid2(ClinVar~., scales = "free_y", switch = "y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill ="#999999" )))
-
-p2 <- ggplot(mutants_BRET %>% filter(NL_symbol=="WWOX" & motif_variant==TRUE) %>% 
-               filter(mCit_symbol=="LITAF" & residue>20) %>% mutate(label=canonical_mutation), 
-             aes(NL_symbol, fct_reorder2(label, residue, mCit_symbol), fill=tstat_cBRET  )) +
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ggtitle("maxBRET") + theme_minimal() + labs(fill = "maxBRET\neffect size") +
-  theme(text = element_text(size = 20), panel.grid.major = element_blank(), legend.position = "none",
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x=element_blank(),
-        axis.text.y=element_blank(), plot.title=element_text(size=15, hjust=0.95)) +
-  scale_y_discrete(limits=rev)+ 
-  facet_grid2(ClinVar~., scales = "free_y", switch = "y",
-                 strip = strip_themed(text_y = element_text(size=0)))
-                
-grid.arrange(p1, p2, nrow=1, left=textGrob("LITAF variants", gp = gpar(fontsize = 20), rot=90 ))
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_WWOX_motif_LITAF2.tiff", units="cm", width=7.5, height=6.5, res=800)
-grid.arrange(p1, p2, nrow=1, widths=c(3,2), left=textGrob("LITAF variants", gp = gpar(fontsize = 20), rot=90 ))
-dev.off()
-
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_PPP3CA_motif.tiff", units="cm", width=7, height=7, res=800)
-grid.arrange(p1, p2, nrow=2, heights=c(2,2.4), left=textGrob("Motif variant", gp = gpar(fontsize = 20), rot=90 ))
-dev.off()
-# # SAVE TIFF
-# tiff("Figures/Figure3_graphics/Heatmaps/VariantTest_PPP3CA_motif.tiff", units="cm", width=9, height=8, res=800)
-# grid.arrange(p1, p2, nrow=2, left=textGrob("Motif variant", gp = gpar(fontsize = 20), rot=90 ))
-# dev.off()
-
 
 
 p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="IQCB1" & motif_variant==TRUE) %>% 
                mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol, fct_reorder(label,  mCit_symbol),  fill=tstat_bret50)) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Domain variants") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
+             aes(NL_symbol, fct_reorder(label,  mCit_symbol),  fill=maxBRET_Log2_FChng)) + 
+  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  ylab("Domain variants") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), 
         panel.grid.major = element_blank(), 
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
@@ -2327,59 +2188,19 @@ p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="IQCB1" & motif_variant==TRUE) %
   facet_grid2(ClinVar~., scales = "free_y", switch = "y", space = "free_y",
                  strip = strip_themed(text_y = element_text(size=0),
                                      background_y = elem_list_rect( fill =colors_Var[3:4] )))
-
-p2 <- ggplot(mutants_BRET %>% filter(NL_symbol=="IQCB1" & motif_variant==TRUE) %>% 
-               mutate(label=paste(gene_symbol,canonical_mutation, sep="\n")), 
-             aes(NL_symbol, fct_reorder(label,  mCit_symbol), fill=tstat_cBRET  )) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ylab("Domain variants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
-  theme(text = element_text(size = 20), 
-        panel.grid.major = element_blank(), 
-        axis.text = element_text(color = "black"), axis.text.x=element_text(size = 25) ,panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.x=element_blank(), plot.title=element_blank(),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev) + 
-  facet_grid2(ClinVar~., scales = "free_y", switch = "y", space = "free_y",
-                 strip = strip_themed(text_y = element_text(size=0),
-                                     background_y = elem_list_rect( fill =colors_Var[3:4] )))
 p1
-p2
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_IQCB1_domain_BRET50.tiff", units="cm", width=9, height=12, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/VariantTest_IQCB1_domain_FC_maxBRET.pdf", width=cm2in(9.3), height=cm2in(12))
 p1
-dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_IQCB1_domain_maxBRET.tiff", units="cm", width=9.3, height=12, res=800)
-p2
 dev.off()
 
 
 p1 <- ggplot(mutants_BRET %>% filter(NL_symbol=="IQCB1" & domain_variant==TRUE) %>% 
                mutate(residue=as.numeric(gsub("[A-Z]", "", canonical_mutation))), 
-             aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_bret50)) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_BRET50), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("IQCB1 variants") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
-  theme(text = element_text(size = 20), 
-        panel.grid.major = element_blank(),
-        axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
-        axis.ticks = element_line(size = 0), axis.title.y=element_blank(), axis.title.x=element_text(hjust=0.8),
-         axis.text.x = element_text(angle = 30, vjust = 1.1, hjust=1), plot.title=element_blank(),
-        legend.key.height= unit(0.7, 'cm'), legend.key.width= unit(0.25, 'cm'), 
-        legend.title = element_text(size=legend_t_size, vjust=legend_t_vjust), legend.text = element_text(size=legend_tx_size)) +
-  scale_y_discrete(limits=rev) + 
-  facet_grid2(.~ClinVar, scales = "free_x", switch = "x", space = "free_x",
-                 strip = strip_themed(text_x = element_text(size=0),
-                                     background_x = elem_list_rect( fill ="#999999" )))
-
-p2 <- ggplot(mutants_BRET %>% filter(NL_symbol=="IQCB1" & domain_variant==TRUE) %>% 
-               mutate(residue=as.numeric(gsub("[A-Z]", "", canonical_mutation))) , 
-             aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=tstat_cBRET)) + 
+             aes(fct_reorder(canonical_mutation, residue), mCit_symbol, fill=maxBRET_Log2_FChng)) + 
   geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  xlab("IQCB1 variants") + theme_minimal() + labs(fill = "Effect size\n\u0394maxBRET") +
+  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-4,4), na.value = "grey80")+
+  xlab("IQCB1 variants") + theme_minimal() + labs(fill = "Log2 FC\nmaxBRET") +
   theme(text = element_text(size = 20), 
         panel.grid.major = element_blank(),
         axis.text = element_text(color = "black"), panel.grid.minor = element_blank(), 
@@ -2392,26 +2213,13 @@ p2 <- ggplot(mutants_BRET %>% filter(NL_symbol=="IQCB1" & domain_variant==TRUE) 
                  strip = strip_themed(text_x = element_text(size=0),
                                      background_x = elem_list_rect( fill ="#999999" )))
 p1
-p2
-
-# SAVE TIFF
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_IQCB1_motif_BRET50.tiff", units="cm", width=9.5, height=8, res=800)
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/FoldChange/VariantTest_IQCB1_motif_FC_maxBRET.pdf", width=cm2in(9.8), height=cm2in(8))
 p1
 dev.off()
-tiff("/Users/jesusav/Desktop/Heatmaps/VariantTest_IQCB1_motif_maxBRET.tiff", units="cm", width=9.8, height=8, res=800)
-p2
-dev.off()
 
-p_legend <- ggplot(mutants_BRET %>% filter(NL_symbol=="IQCB1" & domain_variant==TRUE) %>% 
-               mutate(residue=as.numeric(gsub("[A-Z]", "", canonical_mutation))) , 
-             aes(mCit_symbol, fct_reorder(canonical_mutation, residue), fill=tstat_cBRET)) + 
-  geom_tile(color = "white", lwd = 1.2) + geom_text(aes(label=sig_maxBRET), size=7) +
-  scale_fill_continuous_divergingx(palette = heatmap_pltt, rev = TRUE, mid = 0, limits = c(-20, 20), na.value = "grey80")+
-  ggtitle("maxBRET") + theme_minimal() + labs(fill = "Effect size\n\u0394BRET50") +
-  theme(legend.key.height= unit(1, 'cm'), legend.key.width= unit(0.5, 'cm'), 
-        legend.title = element_text(size=20, vjust=5), legend.text = element_text(size=20))
 
-p_legend
+mutants_BRET %>% filter(NL_symbol=="SPOP" & domain_variant==TRUE) %>% select(mCit_plasmid, tstat_cBRET, pval_cBRET, maxBRET_Log2_FChng)
 ```
 
 ```{r Figure2_Graph_titrationPlots}
@@ -2457,7 +2265,7 @@ for(i in 1:nrow(BRET_mutant_pairs)){
     }
 
   p <- ggplot() + geom_point(data=plot_data, size=2.2, aes(x=ratio, y = cBRET, color=test) ) + 
-      geom_line(data=plot_fit_data, size=0.8, aes(x=ratio, y = cBRET, group=interaction(test, repl_id), color=test))+
+      #geom_line(data=plot_fit_data, size=0.8, aes(x=ratio, y = cBRET, group=interaction(test, repl_id), color=test))+
       ggtitle(plot_title) +  ylab("BRET") + xlab("Protein Acc/Don") +
       #annotate(geom="text", label=test_label, x=max(plot_data$ratio)*0.9, y=max(plot_data$cBRET)/3, size=3, color="red")+
       theme_classic() + labs(fill = "Pathogenicity") + scale_color_manual(values=c("#d52221","black")) +
@@ -2551,6 +2359,10 @@ grid.arrange(p1, p2, p3,  nrow=1)
 dev.off()
 
 
+t.test(pLDDT ~ mutation_location, data = BRET_mutants_update_motif)
+t.test(deltaRSA ~ mutation_location, data = BRET_mutants_update_motif)
+
+
 ```
 
 ```{r Figure4_Graphic_b_BRET_motif_regions}
@@ -2578,7 +2390,18 @@ p2 <- ggplot(BRET_mutants_update_motif, aes(x=mutation_location, y=tstat_cBRET))
         axis.title.x=element_blank(), plot.title=element_blank() ) +
   scale_x_discrete(labels = c("Core","Flank","Core","Flank")) 
 
-grid.arrange(p1, p2,  widths=c(6,5), nrow=1)
+p3 <- ggplot(BRET_mutants_update_motif, aes(x=mutation_location, y=maxBRET_Log2_FChng)) + 
+  geom_quasirandom(size=2, alpha=1, aes(color=exp_conclusion)) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
+  geom_boxplot(color="black",  alpha=0.1,  width=0.5, lwd=0.4, outlier.size = 0.5, outlier.alpha = 1) + 
+  scale_color_manual(values=c("#00548C","#56B4E9")) +
+  xlab("Group") + ylab("Log2 FC maxBRET") + ylim(-2.2,0.5) +
+  theme_classic() + 
+  theme(text = element_text(size = 20), legend.position="none", axis.text = element_text(color = "black"), 
+        axis.title.x=element_blank(), plot.title=element_blank() ) +
+  scale_x_discrete(labels = c("Core","Flank","Core","Flank")) 
+t.test(maxBRET_Log2_FChng ~ mutation_location, data = BRET_mutants_update_motif)
+
+grid.arrange(p1, p2, p3, nrow=1)
 
 # SAVE TIFF
 tiff("Figures/Figure4_graphics/BRET_mutants_scores_BRET2.tiff", units="cm", width=11, height=8, res=800)
@@ -2607,91 +2430,60 @@ tiff("Figures/Figure4_graphics/BRET_mutants_scores_maxBRET_2.pdf",  width=cm2in(
 p2 
 dev.off()
 
+# SAVE PDF
+pdf("/Users/jesusav/Desktop/BRET_mutants_scores_FCmaxBRET_2.pdf",  width=cm2in(7), height=cm2in(8))
+p3
+dev.off()
 
-
+BRET_mutants_update %>% select(mut_protein, aa_change, ClinVar, exp_conclusion) %>% unique() %>% count(ClinVar,exp_conclusion)
 ```
 
-```{r Figure4_Graphic_e_BRET_structural_regions}
-BRET_mutants_update$exp_conclusion <- ordered(BRET_mutants_update$exp_conclusion, levels = c("disrupting","not_disrupting"))
-p1 <- ggplot(BRET_mutants_update , aes(x=structural_region, y=tstat_bret50)) + 
+```{r Figure4_Graphic_e_BRET_structural_regions_FC}
+BRET_mutants_update$structural_region <- ordered(BRET_mutants_update$structural_region, levels = c("d_buried","d_interface", "m_interface","d_surface","m_n_interface"))
+p1 <- ggplot(BRET_mutants_update , aes(x=structural_region, y=maxBRET_Log2_FChng)) + 
   geom_quasirandom(size=2, alpha=1, aes(color=exp_conclusion)) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
   geom_boxplot(color="black", alpha=0.1, width=0.5, lwd=0.4, outlier.size = 1, outlier.alpha = 1) + 
   scale_color_manual(values=c("#00548C","#56B4E9")) +
-  xlab("Group") + ylab("Effect size \u0394BRET50") +  ylim(-25,5) +
+  xlab("Group") + ylab("Log2 FC maxBRET") +  ylim(-2.2,0.4) +
   theme_classic() + 
   theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black"), 
         axis.title.x=element_blank(), plot.title=element_blank(), 
         axis.text.x = element_text(angle = 30, vjust = 1, hjust=1)) +
-  scale_x_discrete(labels = strc_categories) 
-
-p2 <- ggplot(BRET_mutants_update , aes(x=structural_region, y=tstat_cBRET)) + 
-  geom_quasirandom(size=2, alpha=1, aes(color=exp_conclusion)) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
-  geom_boxplot(color="black", alpha=0.1, width=0.5, lwd=0.4, outlier.size = 1, outlier.alpha = 1) + 
-  scale_color_manual(values=c("#00548C","#56B4E9")) +
-  xlab("Group") + ylab("Effect size \u0394maxBRET") +  ylim(-25,5) +
-  theme_classic() + 
-  theme(text = element_text(size = 18), legend.position="none", axis.text = element_text(color = "black"), 
-        axis.title.x= element_blank(), plot.title=element_blank(), 
-        axis.text.x = element_text(angle = 30, vjust = 1, hjust=1) ) +
-  scale_x_discrete(labels = strc_categories) 
-grid.arrange(p1, p2, nrow=1)
-
-
-# SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_regions_BRET.tiff", units="cm", width=15, height=9, res=800)
-grid.arrange(p1, p2+ theme(axis.title=element_blank(),axis.text.y = element_blank()), widths=c(7,6), nrow=1)
-dev.off()
-# SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_regions_BRET.pdf", width=cm2in(15), height=cm2in(9))
-grid.arrange(p1, p2+ theme(axis.title=element_blank(),axis.text.y = element_blank()), widths=c(7,6), nrow=1)
-dev.off()
-
-
-# SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_regions_BRET50.tiff", units="cm", width=10, height=9, res=800)
+  scale_x_discrete(labels = c("D buried","D interface", "M interface","D surface","M not int.")) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) 
 p1
-dev.off()
-# SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_regions_BRET50.pdf", width=cm2in(10), height=cm2in(9))
-p1
-dev.off()
 
-# SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_regions_BRET50.tiff", units="cm", width=10, height=9, res=800)
-p1
-dev.off()
-# SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_regions_BRET50.pdf", width=cm2in(10), height=cm2in(9))
-p1
-dev.off()
-
-temp <- ggplot(BRET_mutants_update , aes(x=structural_region, y=tstat_cBRET)) + 
-  geom_quasirandom(size=2, alpha=1, aes(color=exp_conclusion)) + #geom_beeswarm(corral = "wrap", alpha=0.2, size=0.1) + 
-  geom_boxplot(color="black", alpha=0.1, width=0.5, lwd=0.4, outlier.size = 1, outlier.alpha = 1) + 
-  scale_color_manual(values=c("#00548C","#56B4E9"),labels=c( "Disrupting","Not-disrupting")) +
-  xlab("Group") + ylab("Effect size \u0394maxBRET") +  ylim(-25,5) +
-  theme_classic() + theme(legend.key.size = unit(1, 'cm'), legend.text = element_text(size=20))+
-  guides(colour = guide_legend(override.aes = list(size=5)))
-
-
-BRET_mutants_update %>% 
-  select(mut_protein, aa_change, ClinVar, exp_conclusion, fragment_variant) %>% unique() %>%
-  filter(exp_conclusion=="disrupting" & ClinVar=="Uncertain") %>% unique()
-
-grid.draw(cowplot::get_legend(temp))
-# SAVE TIFF
-tiff("Figures/Figure4_graphics/bret_point_legend.tiff", units="cm", width=7, height=4, res=800)
-grid.draw(cowplot::get_legend(temp))
-dev.off()
 # SAVE PDF
-pdf("Figures/Figure4_graphics/bret_point_legend.pdf", width=cm2in(7), height=cm2in(4))
-grid.draw(cowplot::get_legend(temp))
+pdf("/Users/jesusav/Desktop/BRET_mutants_regions_FC_maxBRET.pdf", width=cm2in(10), height=cm2in(9))
+p1
 dev.off()
 
+BRET_mutants_update %>% arrange(maxBRET_Log2_FChng)
+
+BRET_mutants_update <- BRET_mutants_update %>% mutate(group=case_when(structural_region %in% c("d_surface","m_n_interface") ~ "non_disrp", TRUE ~ "disrp"))
+t.test(maxBRET_Log2_FChng~ group, data = BRET_mutants_update)
+t.test(maxBRET_Log2_FChng~ group, data = BRET_mutants_update)
+
+t.test(maxBRET_Log2_FChng~ group, data = BRET_mutants_update %>% filter(fragment_variant=="motif"))
+t.test(maxBRET_Log2_FChng~ group, data = BRET_mutants_update %>% filter(fragment_variant=="motif" & aa_change!="S41L" & tstat_cBRET!=-1.62866) ) 
+t.test(maxBRET_Log2_FChng~ group, data = BRET_mutants_update %>% filter(structural_region=="d_interface" | structural_region=="d_surface"))
+t.test(maxBRET_Log2_FChng~ group, data = BRET_mutants_update %>% filter(structural_region=="d_buried" | structural_region=="d_surface"))
+
+BRET_mutants_update %>% filter(structural_region=="m_n_interface") %>% arrange(-maxBRET_Log2_FChng)
+
+ggplot(BRET_mutants_update , aes(x=maxBRET_Log2_FChng, y=-log10(pval_cBRET), color=exp_conclusion)) + geom_point() +
+  geom_vline(xintercept =c(0.5, -0.5), size=0.25, color="dimgrey") +
+  geom_hline(yintercept =-log10(0.05), size=0.25, color="dimgrey") +
+  theme_classic() +
+  scale_color_manual(values=c("#00548C","#56B4E9"))
+
+BRET_mutants_update %>% filter(exp_conclusion=="disrupting" & pval_cBRET>0.05)
+
+BRET_mutants_update %>% filter(structural_region=="m_interface")
 ```
 
 ```{r Figure4_Graphic_f_AM_structural_regions}
-p1 <- ggplot(BRET_mutants_update %>% select(aa_change, structural_region, exp_conclusion,AlphaMissense) %>% unique(), 
+p1 <- ggplot(BRET_mutants_update %>% select(aa_change, structural_region, AlphaMissense) %>% unique(), 
              aes(y=structural_region, fill=AlphaMissense)) + 
   geom_bar(position="fill", width = 0.6, color="black", size=0.4) +
   ylab("Structural region") + xlab("Variant fraction") + 
@@ -2705,13 +2497,8 @@ p1 <- ggplot(BRET_mutants_update %>% select(aa_change, structural_region, exp_co
 p1 +  geom_text(aes(label = ..count..), stat = "count", vjust = -0.1,hjust= 1, position = position_fill(0.25), size = 3) +
   geom_text(stat='prop', vjust=-0.1, hjust= -0.1, position = position_fill(0.25), size=3) 
 
-# SAVE TIFF
-tiff("Figures/Figure4_graphics/BRET_mutants_AM_2.tiff", units="cm", width=11, height=8, res=800)
-p1
-dev.off()
-
 # SAVE PDF
-pdf("Figures/Figure4_graphics/BRET_mutants_AM_2.pdf",  width=cm2in(11), height=cm2in(8))
+pdf("/Users/jesusav/Desktop/BRET_mutants_AM_2.pdf",  width=cm2in(11), height=cm2in(8))
 p1
 dev.off()
 
@@ -2757,7 +2544,7 @@ p_legend +  scale_fill_manual(values=colors_Var[3:4], guide = guide_legend(theme
 
 
 
-
+BRET_mutants_update %>% filter(structural_region=="m_n_interface") %>% select(NL_symbol, mCit_symbol, aa_change, exp_conclusion, ClinVar, AlphaMissense) %>% unique()
 ```
 
 
@@ -3002,4 +2789,13 @@ p_legend <- ggplot(ClinVar_mut_dis %>% filter(!is.na(AM_pathogenicity)), aes(y=A
         legend.title = element_text(size=35, hjust=0), legend.text = element_text(size=30))
 p_legend
 
+```
+
+
+```{r MoMaP}
+interections <- c("Q13363_Q96MA1", "Q13363_Q13422", "P0DP23_Q15051", "P27482_Q15051", "Q08209_Q96KS9", "O43791_Q99836", "O43791_P28702", "Q16630_Q9NZC7", "Q15038_Q9NZC7", "Q99732_Q9NZC7")
+All_DMIs %>% filter(intx_ID %in% interections) %>% select(intx_ID, SLiMProtein, Elm, SLiMMatch, Pattern, DomainProtein, DomainName1, DomainMatch1)
+
+
+All_DMIs %>% filter(intx_ID == "Q16630_Q9NZC7") %>% select(intx_ID, SLiMProtein, Elm, SLiMMatch, Pattern, DomainProtein, DomainName1, DomainMatch1)
 ```
