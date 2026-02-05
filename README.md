@@ -28,6 +28,12 @@ This repository contains scripts used in our manuscript to process mutation data
 ### Computing statistics on BRET data
 `DMI_var_BRET_quantification.ipynb`
 
+## Random Forest retests
+### Functions used for retesting RF, modified from the original DMI_predictor repository
+`DMI_RF_functions.py`
+### Re-tests of the RF with variations of features and testing sets
+`RandomForest_retests.py`
+
 ## Manuscript
 ### Analysis and graphic generation
 `Figures.Rmd`
